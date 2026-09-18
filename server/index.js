@@ -1,10 +1,14 @@
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const { Resend } = require("resend");
 require("dotenv").config();
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// Resend
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Middleware
 app.use(cors());
@@ -68,16 +72,51 @@ app.post("/api/contact", async (req, res) => {
     console.log("Email:", email);
     console.log("Message:", message);
 
+    // Send email notification
+    const { data, error } = await resend.emails.send({
+      from: "Portfolio <onboarding@resend.dev>",
+      to: [process.env.RESEND_TO_EMAIL],
+      subject: `New Portfolio Message from ${name}`,
+      html: `
+        <h2>New Contact Form Message</h2>
+
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+
+        <p><strong>Message:</strong></p>
+        <p>${message}</p>
+
+        <hr />
+
+        <p>
+          This message was submitted through your
+          <strong>Divyanshu Singh Portfolio</strong>.
+        </p>
+      `,
+    });
+
+    if (error) {
+      console.error("Resend Email Error:", error);
+
+      return res.status(200).json({
+        success: true,
+        message:
+          "Your message has been received successfully, but email notification could not be sent.",
+      });
+    }
+
+    console.log("Email notification sent successfully:", data?.id);
+
     res.status(200).json({
       success: true,
       message: "Your message has been received successfully!",
     });
   } catch (error) {
-    console.error("MongoDB Error:", error);
+    console.error("Server Error:", error);
 
     res.status(500).json({
       success: false,
-      message: "Failed to save your message.",
+      message: "Failed to process your message.",
     });
   }
 });
