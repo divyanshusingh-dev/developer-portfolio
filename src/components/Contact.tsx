@@ -26,13 +26,16 @@ function Contact() {
     setStatus("");
 
     try {
-      const response = await fetch("http://localhost:5000/api/contact", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+      const response = await fetch(
+        "https://developer-portfolio-8.onrender.com/api/contact",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(formData),
+        }
+      );
 
       const data = await response.json();
 
@@ -135,22 +138,22 @@ function Contact() {
               {/* Location */}
               <div className="flex items-center gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    className="h-6 w-6"
-  >
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"
-    />
-    <circle cx="12" cy="10" r="2.3" />
-  </svg>
-</div>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.8"
+                    className="h-6 w-6"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11Z"
+                    />
+                    <circle cx="12" cy="10" r="2.3" />
+                  </svg>
+                </div>
 
                 <div>
                   <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
@@ -313,9 +316,7 @@ function Contact() {
 
         {/* Bottom CTA */}
         <div className="mt-10 rounded-3xl border border-cyan-500/20 bg-cyan-500/5 p-6 text-center sm:p-8">
-          <p className="text-sm text-slate-400">
-            Prefer email?
-          </p>
+          <p className="text-sm text-slate-400">Prefer email?</p>
 
           <a
             href="mailto:divyanshusingh2006r@gmail.com"
