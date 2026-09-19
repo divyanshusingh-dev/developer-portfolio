@@ -1,53 +1,67 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
-const dotenv = require("dotenv");
 const { Resend } = require("resend");
-
-dotenv.config();
 
 const app = express();
 
 const PORT = process.env.PORT || 5000;
 
-/* =========================
-   Middleware
-========================= */
+// --------------------------------------------------
+// CORS
+// --------------------------------------------------
+
+const allowedProductionOrigin =
+  "https://developer-portfolio-six-rouge.vercel.app";
 
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "https://developer-portfolio-six-rouge.vercel.app",
-    ],
-    methods: ["GET", "POST"],
+    origin: function (origin, callback) {
+      // Allow requests without an Origin header
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Allow production Vercel frontend
+      if (origin === allowedProductionOrigin) {
+        return callback(null, true);
+      }
+
+      // Allow any localhost port for local Vite development
+      if (
+        /^http:\/\/localhost:\d+$/.test(origin) ||
+        /^http:\/\/127\.0\.0\.1:\d+$/.test(origin)
+      ) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
+
+    methods: ["GET", "POST", "OPTIONS"],
+
+    allowedHeaders: ["Content-Type"],
   })
 );
 
 app.use(express.json());
 
-/* =========================
-   Resend
-========================= */
+// --------------------------------------------------
+// MongoDB Connection
+// --------------------------------------------------
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const mongoUri = process.env.MONGODB_URI;
 
-/* =========================
-   MongoDB Connection
-========================= */
+if (!mongoUri) {
+  console.error("❌ MONGODB_URI is missing in .env");
+  process.exit(1);
+}
 
-mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => {
-    console.log("MongoDB connected successfully!");
-  })
-  .catch((error) => {
-    console.error("MongoDB connection error:", error);
-  });
-
-/* =========================
-   Contact Schema
-========================= */
+// --------------------------------------------------
+// Contact Schema
+// --------------------------------------------------
 
 const contactSchema = new mongoose.Schema(
   {
@@ -89,37 +103,246 @@ const contactSchema = new mongoose.Schema(
 
 const Contact = mongoose.model("Contact", contactSchema);
 
-/* =========================
-   Home Route
-========================= */
+// --------------------------------------------------
+// Protected PDF Schema
+// --------------------------------------------------
+
+const protectedPdfSchema = new mongoose.Schema(
+  {
+    fileName: {
+      type: String,
+      required: true,
+      unique: true,
+      index: true,
+    },
+
+    contentType: {
+      type: String,
+      default: "application/pdf",
+    },
+
+    size: {
+      type: Number,
+      required: true,
+    },
+
+    data: {
+      type: Buffer,
+      required: true,
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
+
+const ProtectedPdf = mongoose.model(
+  "ProtectedPdf",
+  protectedPdfSchema
+);
+
+// --------------------------------------------------
+// Protected PDF Configuration
+// --------------------------------------------------
+
+const protectedPdfConfig = {
+  "10th-marksheet.pdf": {
+    passwordEnv: "PDF_10TH_PASSWORD",
+    protectedEnv: "PDF_10TH_PROTECTED",
+  },
+
+  "12th-marksheet.pdf": {
+    passwordEnv: "PDF_12TH_PASSWORD",
+    protectedEnv: "PDF_12TH_PROTECTED",
+  },
+
+  "1st-semester-dmc.pdf": {
+    passwordEnv: "PDF_1ST_SEM_PASSWORD",
+    protectedEnv: "PDF_1ST_SEM_PROTECTED",
+  },
+
+  "2nd-semester-dmc.pdf": {
+    passwordEnv: "PDF_2ND_SEM_PASSWORD",
+    protectedEnv: "PDF_2ND_SEM_PROTECTED",
+  },
+
+  "resume.pdf": {
+    passwordEnv: "PDF_RESUME_PASSWORD",
+    protectedEnv: "PDF_RESUME_PROTECTED",
+  },
+};
+
+function isPdfProtected(fileName) {
+  const config = protectedPdfConfig[fileName];
+
+  if (!config) {
+    return false;
+  }
+
+  return process.env[config.protectedEnv] !== "false";
+}
+
+// --------------------------------------------------
+// Health Check
+// --------------------------------------------------
 
 app.get("/", (req, res) => {
-  res.send("Portfolio Backend is running successfully!");
+  res.json({
+    message: "Developer Portfolio Backend is running!",
+  });
 });
 
-/* =========================
-   Contact Form Route
-========================= */
+// --------------------------------------------------
+// Protected PDF Status
+// --------------------------------------------------
 
-app.post("/api/contact", async (req, res) => {
+app.get("/api/protected-pdf/status/:fileName", async (req, res) => {
   try {
-    const { name, email, phone, purpose, message } = req.body;
+    const { fileName } = req.params;
 
-    /* =========================
-       Validation
-    ========================= */
-
-    if (!name || !email || !purpose || !message) {
+    if (!protectedPdfConfig[fileName]) {
       return res.status(400).json({
-        message: "Please fill all required fields.",
+        message: "Invalid PDF file.",
       });
     }
 
-    /* =========================
-       Save Contact Message
-    ========================= */
+    const pdfExists = await ProtectedPdf.exists({ fileName });
 
-    const newContact = new Contact({
+    if (!pdfExists) {
+      return res.status(404).json({
+        message: "PDF file not found.",
+      });
+    }
+
+    return res.json({
+      fileName,
+      protected: isPdfProtected(fileName),
+    });
+  } catch (error) {
+    console.error("PDF status error:", error);
+
+    return res.status(500).json({
+      message: "Unable to check PDF status.",
+    });
+  }
+});
+
+// --------------------------------------------------
+// Protected PDF Download
+// --------------------------------------------------
+
+app.post("/api/protected-pdf", async (req, res) => {
+  try {
+    const { fileName, password } = req.body;
+
+    if (!fileName) {
+      return res.status(400).json({
+        message: "PDF file name is required.",
+      });
+    }
+
+    if (!protectedPdfConfig[fileName]) {
+      return res.status(400).json({
+        message: "Invalid PDF file.",
+      });
+    }
+
+    const config = protectedPdfConfig[fileName];
+
+    const pdf = await ProtectedPdf.findOne({ fileName });
+
+    if (!pdf) {
+      return res.status(404).json({
+        message: "PDF file not found.",
+      });
+    }
+
+    if (isPdfProtected(fileName)) {
+      const correctPassword = process.env[config.passwordEnv];
+
+      if (!correctPassword) {
+        console.error(
+          `❌ Missing password environment variable: ${config.passwordEnv}`
+        );
+
+        return res.status(500).json({
+          message: "PDF protection is not configured correctly.",
+        });
+      }
+
+      if (password !== correctPassword) {
+        return res.status(401).json({
+          message: "Incorrect password.",
+        });
+      }
+    }
+
+    res.setHeader(
+      "Content-Type",
+      pdf.contentType || "application/pdf"
+    );
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${fileName}"`
+    );
+
+    return res.send(pdf.data);
+  } catch (error) {
+    console.error("PDF download error:", error);
+
+    return res.status(500).json({
+      message: "Unable to download PDF.",
+    });
+  }
+});
+
+// --------------------------------------------------
+// HTML Escape Helper
+// --------------------------------------------------
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// --------------------------------------------------
+// Resend
+// --------------------------------------------------
+
+const resendApiKey = process.env.RESEND_API_KEY;
+const resendToEmail = process.env.RESEND_TO_EMAIL;
+
+const resend = resendApiKey
+  ? new Resend(resendApiKey)
+  : null;
+
+// --------------------------------------------------
+// Contact Form
+// --------------------------------------------------
+
+app.post("/api/contact", async (req, res) => {
+  try {
+    const {
+      name,
+      email,
+      phone,
+      purpose,
+      message,
+    } = req.body;
+
+    if (!name || !email || !purpose || !message) {
+      return res.status(400).json({
+        message:
+          "Name, email, purpose and message are required.",
+      });
+    }
+
+    const newContact = await Contact.create({
       name,
       email,
       phone: phone || "",
@@ -127,295 +350,151 @@ app.post("/api/contact", async (req, res) => {
       message,
     });
 
-    await newContact.save();
-
-    console.log("New Contact Message Saved:");
+    console.log("\nNew Contact Message Saved:");
     console.log("Name:", name);
     console.log("Email:", email);
-    console.log("Phone:", phone || "Not provided");
+    console.log(
+      "Phone:",
+      phone || "Not provided"
+    );
     console.log("Purpose:", purpose);
     console.log("Message:", message);
 
-    /* =========================
-       Send Email Notification
-    ========================= */
+    if (resend && resendToEmail) {
+      const safeName = escapeHtml(name);
+      const safeEmail = escapeHtml(email);
+      const safePhone = escapeHtml(
+        phone || "Not provided"
+      );
+      const safePurpose = escapeHtml(purpose);
+      const safeMessage = escapeHtml(
+        message
+      ).replace(/\n/g, "<br>");
 
-    const { data, error } = await resend.emails.send({
-      from: "Portfolio <onboarding@resend.dev>",
-      to: process.env.RESEND_TO_EMAIL,
-      subject: `New Portfolio Message from ${name}`,
+      const emailResult = await resend.emails.send({
+        from:
+          "Developer Portfolio <onboarding@resend.dev>",
 
-      html: `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="UTF-8" />
-            <title>New Portfolio Message</title>
-          </head>
+        to: resendToEmail,
 
-          <body
-            style="
-              margin: 0;
-              padding: 0;
-              background-color: #f4f4f5;
-              font-family: Arial, Helvetica, sans-serif;
-            "
-          >
-            <div
-              style="
-                max-width: 650px;
-                margin: 30px auto;
-                background-color: #ffffff;
-                border-radius: 12px;
-                overflow: hidden;
-                border: 1px solid #e4e4e7;
-              "
-            >
+        subject: `New Portfolio Contact: ${name}`,
 
-              <!-- Header -->
-              <div
-                style="
-                  background-color: #020617;
-                  padding: 28px 30px;
-                "
-              >
-                <h1
-                  style="
-                    margin: 0;
-                    color: #22d3ee;
-                    font-size: 24px;
-                  "
-                >
-                  New Portfolio Message
-                </h1>
+        html: `
+          <div style="
+            font-family: Arial, sans-serif;
+            max-width: 700px;
+            margin: auto;
+            padding: 24px;
+            background: #f8fafc;
+          ">
+            <div style="
+              background: #ffffff;
+              border-radius: 14px;
+              padding: 28px;
+              border: 1px solid #e2e8f0;
+            ">
+              <h2 style="margin-top: 0;">
+                New Contact Form Message
+              </h2>
 
-                <p
-                  style="
-                    margin: 8px 0 0;
-                    color: #cbd5e1;
-                    font-size: 14px;
-                  "
-                >
-                  Someone submitted the contact form on your portfolio.
-                </p>
+              <p>
+                <strong>Name:</strong> ${safeName}
+              </p>
+
+              <p>
+                <strong>Email:</strong> ${safeEmail}
+              </p>
+
+              <p>
+                <strong>Phone:</strong> ${safePhone}
+              </p>
+
+              <p>
+                <strong>Purpose:</strong> ${safePurpose}
+              </p>
+
+              <div style="
+                margin-top: 20px;
+                padding: 18px;
+                background: #f1f5f9;
+                border-radius: 10px;
+              ">
+                <strong>Message:</strong>
+                <p>${safeMessage}</p>
               </div>
 
-              <!-- Content -->
-              <div style="padding: 30px;">
-
-                <!-- Name -->
-                <div style="margin-bottom: 22px;">
-                  <p
-                    style="
-                      margin: 0 0 6px;
-                      color: #64748b;
-                      font-size: 12px;
-                      font-weight: bold;
-                      text-transform: uppercase;
-                      letter-spacing: 1px;
-                    "
-                  >
-                    Name
-                  </p>
-
-                  <p
-                    style="
-                      margin: 0;
-                      color: #0f172a;
-                      font-size: 16px;
-                      font-weight: 600;
-                    "
-                  >
-                    ${name}
-                  </p>
-                </div>
-
-                <!-- Email -->
-                <div style="margin-bottom: 22px;">
-                  <p
-                    style="
-                      margin: 0 0 6px;
-                      color: #64748b;
-                      font-size: 12px;
-                      font-weight: bold;
-                      text-transform: uppercase;
-                      letter-spacing: 1px;
-                    "
-                  >
-                    Email
-                  </p>
-
-                  <p
-                    style="
-                      margin: 0;
-                      color: #0f172a;
-                      font-size: 16px;
-                    "
-                  >
-                    <a
-                      href="mailto:${email}"
-                      style="
-                        color: #0891b2;
-                        text-decoration: none;
-                      "
-                    >
-                      ${email}
-                    </a>
-                  </p>
-                </div>
-
-                <!-- Phone -->
-                <div style="margin-bottom: 22px;">
-                  <p
-                    style="
-                      margin: 0 0 6px;
-                      color: #64748b;
-                      font-size: 12px;
-                      font-weight: bold;
-                      text-transform: uppercase;
-                      letter-spacing: 1px;
-                    "
-                  >
-                    Phone
-                  </p>
-
-                  <p
-                    style="
-                      margin: 0;
-                      color: #0f172a;
-                      font-size: 16px;
-                    "
-                  >
-                    ${phone || "Not provided"}
-                  </p>
-                </div>
-
-                <!-- Purpose -->
-                <div style="margin-bottom: 22px;">
-                  <p
-                    style="
-                      margin: 0 0 6px;
-                      color: #64748b;
-                      font-size: 12px;
-                      font-weight: bold;
-                      text-transform: uppercase;
-                      letter-spacing: 1px;
-                    "
-                  >
-                    Purpose
-                  </p>
-
-                  <p
-                    style="
-                      display: inline-block;
-                      margin: 0;
-                      padding: 7px 12px;
-                      background-color: #ecfeff;
-                      color: #0891b2;
-                      border-radius: 6px;
-                      font-size: 14px;
-                      font-weight: 600;
-                    "
-                  >
-                    ${purpose}
-                  </p>
-                </div>
-
-                <!-- Message -->
-                <div style="margin-bottom: 10px;">
-                  <p
-                    style="
-                      margin: 0 0 8px;
-                      color: #64748b;
-                      font-size: 12px;
-                      font-weight: bold;
-                      text-transform: uppercase;
-                      letter-spacing: 1px;
-                    "
-                  >
-                    Message
-                  </p>
-
-                  <div
-                    style="
-                      background-color: #f8fafc;
-                      border: 1px solid #e2e8f0;
-                      border-radius: 8px;
-                      padding: 16px;
-                      color: #334155;
-                      font-size: 15px;
-                      line-height: 1.7;
-                      white-space: pre-wrap;
-                    "
-                  >
-                    ${message}
-                  </div>
-                </div>
-
-              </div>
-
-              <!-- Footer -->
-              <div
-                style="
-                  background-color: #f8fafc;
-                  border-top: 1px solid #e2e8f0;
-                  padding: 18px 30px;
-                "
-              >
-                <p
-                  style="
-                    margin: 0;
-                    color: #64748b;
-                    font-size: 12px;
-                    text-align: center;
-                  "
-                >
-                  This message was submitted through the
-                  <strong>Divyanshu Singh Portfolio</strong>.
-                </p>
-              </div>
-
+              <p style="
+                margin-top: 24px;
+                color: #64748b;
+                font-size: 13px;
+              ">
+                This message was submitted through the
+                Developer Portfolio contact form.
+              </p>
             </div>
-          </body>
-        </html>
-      `,
-    });
-
-    /* =========================
-       Resend Error Handling
-    ========================= */
-
-    if (error) {
-      console.error("Resend email error:", error);
-
-      return res.status(500).json({
-        message:
-          "Message was saved successfully, but email notification could not be sent.",
+          </div>
+        `,
       });
+
+      if (emailResult.error) {
+        console.error(
+          "❌ Email notification failed:",
+          emailResult.error
+        );
+      } else {
+        console.log(
+          "✅ Email notification sent successfully:",
+          emailResult.data?.id
+        );
+      }
+    } else {
+      console.log(
+        "⚠️ Resend is not configured. Message was saved to MongoDB only."
+      );
     }
 
-    console.log("Email notification sent successfully:", data?.id);
-
-    /* =========================
-       Success Response
-    ========================= */
-
-    return res.status(200).json({
+    return res.status(201).json({
       message: "Message sent successfully!",
+      contactId: newContact._id,
     });
   } catch (error) {
-    console.error("Contact form error:", error);
+    console.error(
+      "❌ Contact form error:",
+      error
+    );
 
     return res.status(500).json({
-      message: "Server error. Please try again later.",
+      message:
+        "Something went wrong. Please try again.",
     });
   }
 });
 
-/* =========================
-   Start Server
-========================= */
+// --------------------------------------------------
+// Start Server
+// --------------------------------------------------
 
-app.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
-});
+async function startServer() {
+  try {
+    await mongoose.connect(mongoUri);
+
+    console.log(
+      "MongoDB connected successfully!"
+    );
+
+    app.listen(PORT, () => {
+      console.log(
+        `Backend server running on http://localhost:${PORT}`
+      );
+    });
+  } catch (error) {
+    console.error(
+      "❌ MongoDB connection failed:",
+      error.message
+    );
+
+    process.exit(1);
+  }
+}
+
+startServer();
