@@ -7,17 +7,23 @@ import Experience from "./components/Experience"
 import Education from "./components/Education"
 import Contact from "./components/Contact"
 import Footer from "./components/Footer"
+import AdminPdfSecurity from "./components/AdminPdfSecurity"
 
 function App() {
+  const isAdminPage =
+    window.location.pathname === "/admin-pdf-security"
+
+  if (isAdminPage) {
+    return <AdminPdfSecurity />
+  }
+
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#020617] text-white">
-
       {/* =====================================================
           GLOBAL BACKGROUND
       ====================================================== */}
 
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-
         {/* Base */}
 
         <div className="absolute inset-0 bg-[#020617]" />
@@ -90,7 +96,7 @@ function App() {
           className="absolute inset-0 opacity-[0.06]"
           style={{
             backgroundImage:
-              "linear-gradient(rgba(34,211,238,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.5) 1px, transparent 1px)",
+              "linear-gradient(rgba(34,211,238,0.5) 1px,transparent 1px), linear-gradient(90deg, rgba(34,211,238,0.5) 1px, transparent 1px)",
             backgroundSize: "60px 60px",
           }}
         />
@@ -133,7 +139,6 @@ function App() {
       ====================================================== */}
 
       <div className="relative z-10">
-
         {/* Navbar */}
 
         <Navbar />
@@ -153,9 +158,7 @@ function App() {
         {/* Footer */}
 
         <Footer />
-
       </div>
-
     </div>
   )
 }
