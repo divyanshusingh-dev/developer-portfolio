@@ -6,6 +6,12 @@ import {
   type FormEvent,
 } from "react";
 
+const API_BASE =
+  window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1"
+    ? "http://localhost:5000"
+    : "https://developer-portfolio-8.onrender.com";
+
 function Contact() {
   const [formData, setFormData] = useState({
     name: "",
@@ -18,6 +24,11 @@ function Contact() {
   const [status, setStatus] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isPurposeOpen, setIsPurposeOpen] = useState(false);
+
+  const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
+  const [resumePassword, setResumePassword] = useState("");
+  const [resumeError, setResumeError] = useState("");
+  const [isResumeDownloading, setIsResumeDownloading] = useState(false);
 
   const purposeRef = useRef<HTMLDivElement>(null);
 
@@ -107,16 +118,13 @@ function Contact() {
     setStatus("");
 
     try {
-      const response = await fetch(
-        "https://developer-portfolio-8.onrender.com/api/contact",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(formData),
-        }
-      );
+      const response = await fetch(`${API_BASE}/api/contact`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
 
       const data = await response.json();
 
@@ -139,6 +147,113 @@ function Contact() {
     } finally {
       setIsSending(false);
     }
+  };
+
+  const downloadResume = async (password = "") => {
+    setIsResumeDownloading(true);
+    setResumeError("");
+
+    try {
+      const response = await fetch(`${API_BASE}/api/protected-pdf`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          fileName: "resume.pdf",
+          password,
+        }),
+      });
+
+      const contentType = response.headers.get("content-type") || "";
+
+      if (!response.ok) {
+        let message = "Unable to download resume.";
+
+        try {
+          const data = await response.json();
+          message = data.message || message;
+        } catch {
+          // Keep default message if response is not JSON.
+        }
+
+        throw new Error(message);
+      }
+
+      if (!contentType.includes("application/pdf")) {
+        throw new Error("Invalid PDF response received.");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "resume.pdf";
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      URL.revokeObjectURL(url);
+
+      setResumePassword("");
+      setIsResumeModalOpen(false);
+      setResumeError("");
+    } catch (error) {
+      console.error(error);
+
+      setResumeError(
+        error instanceof Error
+          ? error.message
+          : "Unable to download resume."
+      );
+    } finally {
+      setIsResumeDownloading(false);
+    }
+  };
+
+  const handleResumeClick = async () => {
+    setResumeError("");
+    setResumePassword("");
+
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/protected-pdf/status/resume.pdf`
+      );
+
+      if (!response.ok) {
+        throw new Error("Unable to check resume protection status.");
+      }
+
+      const data = await response.json();
+
+      if (data.protected) {
+        setIsResumeModalOpen(true);
+        return;
+      }
+
+      await downloadResume("");
+    } catch (error) {
+      console.error(error);
+
+      setResumeError(
+        error instanceof Error
+          ? error.message
+          : "Unable to access resume."
+      );
+    }
+  };
+
+  const handleResumeSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (!resumePassword.trim()) {
+      setResumeError("Please enter the PDF password.");
+      return;
+    }
+
+    await downloadResume(resumePassword);
   };
 
   return (
@@ -277,14 +392,18 @@ function Contact() {
                   GitHub
                 </a>
 
-                <a
-                  href="/resume.pdf"
-                  download
+                <button
+                  type="button"
+                  onClick={handleResumeClick}
                   className="rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-cyan-500/50 hover:text-cyan-400"
                 >
                   Download Resume
-                </a>
+                </button>
               </div>
+
+              {resumeError && !isResumeModalOpen && (
+                <p className="mt-3 text-xs text-red-400">{resumeError}</p>
+              )}
             </div>
           </div>
 
@@ -624,6 +743,102 @@ function Contact() {
           </a>
         </div>
       </div>
+
+      {/* Resume Password Modal */}
+      {isResumeModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-2xl sm:p-8">
+            <div className="mb-6">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="h-6 w-6"
+                >
+                  <rect
+                    x="5"
+                    y="10"
+                    width="14"
+                    height="10"
+                    rx="2"
+                  />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M8 10V7a4 4 0 0 1 8 0v3"
+                  />
+                </svg>
+              </div>
+
+              <h3 className="text-2xl font-bold text-white">
+                Protected Resume
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-slate-400">
+                Enter the password to download the resume.
+              </p>
+            </div>
+
+            <form onSubmit={handleResumeSubmit} className="space-y-4">
+              <div>
+                <label
+                  htmlFor="resume-password"
+                  className="mb-2 block text-sm font-medium text-slate-300"
+                >
+                  PDF Password
+                </label>
+
+                <input
+                  id="resume-password"
+                  type="password"
+                  value={resumePassword}
+                  onChange={(e) => {
+                    setResumePassword(e.target.value);
+                    setResumeError("");
+                  }}
+                  placeholder="Enter password"
+                  autoFocus
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10"
+                />
+              </div>
+
+              {resumeError && (
+                <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                  {resumeError}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isResumeDownloading) {
+                      setIsResumeModalOpen(false);
+                      setResumePassword("");
+                      setResumeError("");
+                    }
+                  }}
+                  disabled={isResumeDownloading}
+                  className="rounded-xl border border-slate-700 bg-slate-950/70 px-5 py-3 text-sm font-medium text-slate-300 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isResumeDownloading}
+                  className="rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isResumeDownloading ? "Downloading..." : "Download Resume"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
