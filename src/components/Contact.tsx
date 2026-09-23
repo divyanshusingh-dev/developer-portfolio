@@ -732,16 +732,77 @@ function Contact() {
         </div>
 
         {/* Bottom Email */}
-        <div className="mt-10 rounded-3xl border border-cyan-500/20 bg-cyan-500/5 p-6 text-center sm:p-8">
-          <p className="text-sm text-slate-400">Prefer email?</p>
+        {/* Bottom Email CTA */}
+<div className="mt-10 overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60 shadow-xl backdrop-blur-sm">
+  <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+    
+    {/* Left */}
+    <div className="flex items-start gap-4">
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-cyan-500/20 bg-cyan-500/10 text-cyan-400">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          className="h-6 w-6"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M3 6.75A1.75 1.75 0 0 1 4.75 5h14.5A1.75 1.75 0 0 1 21 6.75v10.5A1.75 1.75 0 0 1 19.25 19H4.75A1.75 1.75 0 0 1 3 17.25V6.75Z"
+          />
 
-          <a
-            href="mailto:divyanshusingh2006r@gmail.com"
-            className="mt-2 inline-block text-lg font-semibold text-cyan-400 transition hover:text-cyan-300 sm:text-xl"
-          >
-            divyanshusingh2006r@gmail.com
-          </a>
-        </div>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="m4 7 8 6 8-6"
+          />
+        </svg>
+      </div>
+
+      <div>
+        <p className="text-sm font-semibold text-white">
+          Prefer direct email?
+        </p>
+
+        <p className="mt-1 break-all text-sm text-slate-400">
+          divyanshusingh2006r@gmail.com
+        </p>
+      </div>
+    </div>
+
+    {/* Right */}
+    <a
+      href="mailto:divyanshusingh2006r@gmail.com?subject=Portfolio%20Inquiry"
+      className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-5 py-3 text-sm font-semibold text-cyan-400 transition-all duration-300 hover:border-cyan-400/60 hover:bg-cyan-500/15 hover:text-cyan-300 hover:shadow-lg hover:shadow-cyan-500/10"
+      aria-label="Compose an email to Divyanshu Singh"
+    >
+      <span>Compose Email</span>
+
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
+      >
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M5 12h13"
+        />
+
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          d="m13 6 6 6-6 6"
+        />
+      </svg>
+    </a>
+  </div>
+</div>
       </div>
 
       {/* Resume Password Modal */}
@@ -765,6 +826,7 @@ function Contact() {
                     height="10"
                     rx="2"
                   />
+
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -832,7 +894,9 @@ function Contact() {
                   disabled={isResumeDownloading}
                   className="rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {isResumeDownloading ? "Downloading..." : "Download Resume"}
+                  {isResumeDownloading
+                    ? "Downloading..."
+                    : "Download Resume"}
                 </button>
               </div>
             </form>
