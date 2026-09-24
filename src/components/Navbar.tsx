@@ -19,10 +19,8 @@ function Navbar() {
   /* ================= SCROLL EFFECTS ================= */
   useEffect(() => {
     const handleScroll = () => {
-      /* Navbar background */
       setIsScrolled(window.scrollY > 20)
 
-      /* Scroll progress */
       const scrollTop = window.scrollY
       const documentHeight =
         document.documentElement.scrollHeight - window.innerHeight
@@ -36,7 +34,6 @@ function Navbar() {
     }
 
     window.addEventListener("scroll", handleScroll)
-
     handleScroll()
 
     return () => {
@@ -48,7 +45,7 @@ function Navbar() {
   useEffect(() => {
     const sections = navLinks
       .map((link) => document.querySelector(link.href))
-      .filter(Boolean)
+      .filter((section): section is Element => Boolean(section))
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -73,9 +70,7 @@ function Navbar() {
     )
 
     sections.forEach((section) => {
-      if (section) {
-        observer.observe(section)
-      }
+      observer.observe(section)
     })
 
     return () => {
@@ -115,7 +110,6 @@ function Navbar() {
         }`}
       >
         <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-
           {/* ================= LOGO ================= */}
 
           <a
@@ -238,7 +232,6 @@ function Navbar() {
           }`}
         >
           <div className="space-y-1 px-4 py-4 sm:px-6">
-
             {navLinks.map((link) => {
               const sectionId =
                 link.href.replace("#", "")
@@ -281,7 +274,6 @@ function Navbar() {
             >
               Let's Talk
             </a>
-
           </div>
         </div>
       </header>
