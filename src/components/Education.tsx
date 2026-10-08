@@ -10,19 +10,8 @@ type Semester = {
   available: boolean
 }
 
-type SchoolDocument = {
-  slot: string
-  name: string
-  fileName: string
-  percentage: number | null
-  enabled: boolean
-  hasFile: boolean
-  available: boolean
-}
-
 type EducationResponse = {
   semesters: Semester[]
-  classMarksheets: SchoolDocument[]
   overallCgpa: number | null
   message?: string
 }
@@ -33,11 +22,74 @@ const API_BASE =
     ? "http://localhost:5000"
     : "https://developer-portfolio-8.onrender.com"
 
+const fallbackSemesters: Semester[] = [
+  {
+    slot: "firstSemester",
+    name: "First Semester",
+    fileName: "1st-semester-dmc.pdf",
+    sgpa: 8.72,
+    enabled: true,
+    hasFile: true,
+    available: true,
+  },
+  {
+    slot: "secondSemester",
+    name: "Second Semester",
+    fileName: "2nd-semester-dmc.pdf",
+    sgpa: 8.95,
+    enabled: true,
+    hasFile: true,
+    available: true,
+  },
+  {
+    slot: "thirdSemester",
+    name: "Third Semester",
+    fileName: "3rd-semester-dmc.pdf",
+    sgpa: 8.78,
+    enabled: true,
+    hasFile: true,
+    available: true,
+  },
+  {
+    slot: "fourthSemester",
+    name: "Fourth Semester",
+    fileName: "4th-semester-dmc.pdf",
+    sgpa: null,
+    enabled: false,
+    hasFile: false,
+    available: false,
+  },
+  {
+    slot: "fifthSemester",
+    name: "Fifth Semester",
+    fileName: "5th-semester-dmc.pdf",
+    sgpa: null,
+    enabled: false,
+    hasFile: false,
+    available: false,
+  },
+  {
+    slot: "sixthSemester",
+    name: "Sixth Semester",
+    fileName: "6th-semester-dmc.pdf",
+    sgpa: null,
+    enabled: false,
+    hasFile: false,
+    available: false,
+  },
+]
+
+const fallbackCgpa = (8.72 + 8.95 + 8.78) / 3
+
 function Education() {
-  const [semesters, setSemesters] = useState<Semester[]>([])
-  const [classMarksheets, setClassMarksheets] = useState<SchoolDocument[]>([])
-  const [overallCgpa, setOverallCgpa] = useState<number | null>(null)
+  const [semesters, setSemesters] = useState<Semester[]>(
+    fallbackSemesters
+  )
+  const [overallCgpa, setOverallCgpa] = useState<number | null>(
+    fallbackCgpa
+  )
   const [isLoading, setIsLoading] = useState(true)
+
   const [downloadFile, setDownloadFile] = useState<string | null>(null)
   const [downloadName, setDownloadName] = useState("")
   const [downloadPassword, setDownloadPassword] = useState("")
@@ -49,49 +101,77 @@ function Education() {
     const loadEducation = async () => {
       try {
         setIsLoading(true)
-        setError("")
 
         const response = await fetch(
           `${API_BASE}/api/public/education`,
           { cache: "no-store" }
         )
 
-        const data = (await response.json()) as EducationResponse
-
         if (!response.ok) {
-          throw new Error(
-            data.message || "Unable to load education data."
-          )
+          throw new Error("Education API unavailable")
         }
 
-        setSemesters(data.semesters || [])
-        setClassMarksheets(data.classMarksheets || [])
-        setOverallCgpa(data.overallCgpa ?? null)
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Unable to load education data."
+        const data = (await response.json()) as EducationResponse
+
+        const serverMap = new Map(
+          (data.semesters || []).map((semester) => [
+            semester.slot,
+            semester,
+          ])
         )
+
+        const mergedSemesters = fallbackSemesters.map((fallback) => {
+          const server = serverMap.get(fallback.slot)
+
+          if (!server) {
+            return fallback
+          }
+
+          return {
+            ...fallback,
+            ...server,
+            sgpa: server.sgpa ?? fallback.sgpa,
+            fileName: server.fileName || fallback.fileName,
+          }
+        })
+
+        setSemesters(mergedSemesters)
+
+        const enteredSgpas = mergedSemesters
+          .map((semester) => semester.sgpa)
+          .filter((value): value is number => value !== null)
+
+        setOverallCgpa(
+          enteredSgpas.length > 0
+            ? enteredSgpas.reduce(
+                (sum, value) => sum + value,
+                0
+              ) / enteredSgpas.length
+            : fallbackCgpa
+        )
+
+        setError("")
+      } catch {
+        setSemesters(fallbackSemesters)
+        setOverallCgpa(fallbackCgpa)
+        setError("")
       } finally {
         setIsLoading(false)
       }
     }
 
-    loadEducation()
+    void loadEducation()
   }, [])
 
   const semesterMap = useMemo(
-    () => new Map(semesters.map((semester) => [semester.slot, semester])),
-    [semesters]
-  )
-
-  const schoolDocumentMap = useMemo(
     () =>
       new Map(
-        classMarksheets.map((document) => [document.slot, document])
+        semesters.map((semester) => [
+          semester.slot,
+          semester,
+        ])
       ),
-    [classMarksheets]
+    [semesters]
   )
 
   const requestDownload = async (
@@ -111,11 +191,15 @@ function Education() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.message || "Unable to check PDF status.")
+        throw new Error(
+          data.message || "Unable to check PDF status."
+        )
       }
 
       if (data.enabled === false) {
-        throw new Error("This document is currently disabled.")
+        throw new Error(
+          "This document is currently disabled."
+        )
       }
 
       setDownloadFile(fileName)
@@ -162,8 +246,10 @@ function Education() {
 
       if (!response.ok) {
         const data = await response.json()
+
         throw new Error(
-          data.message || "Unable to download PDF."
+          data.message ||
+            `Unable to download ${displayName}.`
         )
       }
 
@@ -173,9 +259,11 @@ function Education() {
 
       link.href = url
       link.download = fileName
+
       document.body.appendChild(link)
       link.click()
       link.remove()
+
       URL.revokeObjectURL(url)
 
       setShowPasswordModal(false)
@@ -192,31 +280,32 @@ function Education() {
     }
   }
 
-  const semesterCards = [
+  const semesterSlots = [
     "firstSemester",
     "secondSemester",
     "thirdSemester",
     "fourthSemester",
     "fifthSemester",
     "sixthSemester",
-  ].map((slot) => semesterMap.get(slot))
+  ]
 
   return (
     <section
       id="education"
-      className="w-full overflow-hidden border-t border-slate-800 bg-transparent px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24"
+      className="border-t border-slate-800 bg-slate-950 px-6 py-20"
     >
-      <div className="mx-auto w-full max-w-7xl">
-        <div className="mb-10 sm:mb-14">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-cyan-400 sm:text-sm sm:tracking-[0.3em]">
+      <div className="mx-auto max-w-7xl">
+        {/* Section Heading */}
+        <div className="mb-12">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-400">
             Education
           </p>
 
-          <h2 className="text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl lg:text-5xl">
+          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
             My Education
           </h2>
 
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base sm:leading-7 lg:text-lg lg:leading-8">
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">
             My academic background, semester performance and educational journey.
           </p>
         </div>
@@ -227,20 +316,20 @@ function Education() {
           </div>
         )}
 
-        <div className="space-y-5 sm:space-y-6">
+        <div className="space-y-6">
           {/* BCA */}
-          <div className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 p-4 sm:p-6 lg:p-7">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="group rounded-2xl border border-slate-800 bg-slate-900/70 p-6 transition-all duration-300 hover:border-cyan-400/20 hover:bg-slate-900 sm:p-7">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400 sm:text-sm">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-400">
                   Bachelor of Computer Applications
                 </p>
 
-                <h3 className="mt-2 text-lg font-bold leading-snug text-white sm:text-xl lg:text-2xl">
+                <h3 className="text-xl font-bold text-white sm:text-2xl">
                   Bachelor of Computer Applications (BCA)
                 </h3>
 
-                <p className="mt-2 text-sm leading-6 text-slate-400 sm:text-base">
+                <p className="mt-2 text-sm text-slate-400 sm:text-base">
                   I. K. Gujral Punjab Technical University (IKGPTU)
                 </p>
 
@@ -249,115 +338,122 @@ function Education() {
                 </p>
               </div>
 
-              <span className="w-fit shrink-0 rounded-full border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 sm:px-4 sm:py-2 sm:text-sm">
-                2024 – 27
-              </span>
+              <div className="w-fit rounded-full border border-cyan-400/20 bg-cyan-400/5 px-4 py-2">
+                <span className="text-xs font-medium text-cyan-300">
+                  2024 – 27
+                </span>
+              </div>
             </div>
 
-            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {semesterCards.map((semester, index) => {
-                const fallbackNames = [
-                  "First Semester",
-                  "Second Semester",
-                  "Third Semester",
-                  "Fourth Semester",
-                  "Fifth Semester",
-                  "Sixth Semester",
-                ]
-                const fallbackSlots = [
-                  "firstSemester",
-                  "secondSemester",
-                  "thirdSemester",
-                  "fourthSemester",
-                  "fifthSemester",
-                  "sixthSemester",
-                ]
+            {/* Divider */}
+            <div className="my-6 h-px bg-slate-800" />
 
-                const name = semester?.name || fallbackNames[index]
-                const slot = semester?.slot || fallbackSlots[index]
-                const hasSgpa = semester?.sgpa !== null && semester?.sgpa !== undefined
-                const canDownload = Boolean(
-                  semester?.available && semester?.hasFile
-                )
+            {/* Semester Performance */}
+            <div>
+              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Semester Performance
+              </p>
 
-                return (
-                  <div
-                    key={slot}
-                    className={`min-w-0 rounded-xl border p-4 sm:p-5 ${
-                      canDownload
-                        ? "border-slate-800 bg-slate-950/70"
-                        : "border-slate-800/60 bg-slate-950/40"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm font-medium text-slate-400">
-                        {name}
-                      </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {semesterSlots.map((slot) => {
+                  const semester =
+                    semesterMap.get(slot) ||
+                    fallbackSemesters.find(
+                      (item) => item.slot === slot
+                    )!
 
-                      <span
-                        className={`shrink-0 rounded-full border px-2 py-1 text-[10px] font-semibold sm:text-xs ${
-                          canDownload
-                            ? "border-emerald-400/20 bg-emerald-400/5 text-emerald-300"
-                            : "border-slate-700 bg-slate-900 text-slate-500"
-                        }`}
-                      >
-                        {canDownload ? "Available" : "Pending"}
-                      </span>
-                    </div>
+                  const hasSgpa =
+                    semester.sgpa !== null &&
+                    semester.sgpa !== undefined
 
-                    <p
-                      className={`mt-3 text-2xl font-bold ${
-                        hasSgpa ? "text-white" : "text-slate-600"
+                  const canDownload = Boolean(
+                    semester.available &&
+                      semester.hasFile
+                  )
+
+                  return (
+                    <div
+                      key={slot}
+                      className={`rounded-xl border p-5 transition-all duration-300 ${
+                        canDownload
+                          ? "border-slate-800 bg-slate-950/70 hover:border-cyan-400/20"
+                          : "border-slate-800/70 bg-slate-950/40"
                       }`}
                     >
-                      {hasSgpa
-                        ? `SGPA: ${semester?.sgpa?.toFixed(2)}`
-                        : "SGPA: —"}
-                    </p>
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="text-sm font-medium text-slate-400">
+                          {semester.name}
+                        </p>
 
-                    <p className="mt-2 text-xs text-slate-500">
-                      {canDownload
-                        ? "Semester DMC available"
-                        : semester?.hasFile === false
-                          ? "DMC not uploaded"
+                        <span
+                          className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold sm:text-xs ${
+                            canDownload
+                              ? "border-emerald-400/20 bg-emerald-400/5 text-emerald-300"
+                              : "border-slate-700 bg-slate-900 text-slate-500"
+                          }`}
+                        >
+                          {canDownload
+                            ? "Available"
+                            : "Pending"}
+                        </span>
+                      </div>
+
+                      <p
+                        className={`mt-4 text-2xl font-bold ${
+                          hasSgpa
+                            ? "text-white"
+                            : "text-slate-600"
+                        }`}
+                      >
+                        {hasSgpa
+                          ? `SGPA: ${semester.sgpa!.toFixed(2)}`
+                          : "SGPA: —"}
+                      </p>
+
+                      <p className="mt-2 text-xs text-slate-500 sm:text-sm">
+                        {canDownload
+                          ? "Semester DMC available"
                           : "DMC not available"}
-                    </p>
+                      </p>
 
-                    {canDownload ? (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          requestDownload(
-                            semester!.fileName,
-                            `${name} DMC`
-                          )
-                        }
-                        className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-3 py-2.5 text-xs font-semibold text-cyan-400 transition hover:bg-cyan-400 hover:text-slate-950 sm:text-sm"
-                      >
-                        Download DMC
-                        <span>↓</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        disabled
-                        className="mt-4 flex w-full cursor-not-allowed items-center justify-center rounded-lg border border-slate-800 bg-slate-900 px-3 py-2.5 text-xs font-semibold text-slate-600 sm:text-sm"
-                      >
-                        DMC Not Available
-                      </button>
-                    )}
-                  </div>
-                )
-              })}
+                      {canDownload ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void requestDownload(
+                              semester.fileName,
+                              `${semester.name} DMC`
+                            )
+                          }
+                          className="mt-5 flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-3 py-2.5 text-xs font-semibold text-cyan-400 transition hover:bg-cyan-400 hover:text-slate-950 sm:text-sm"
+                        >
+                          Download DMC
+                          <span>↓</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          className="mt-5 flex w-full cursor-not-allowed items-center justify-center rounded-lg border border-slate-800 bg-slate-900 px-3 py-2.5 text-xs font-semibold text-slate-600 sm:text-sm"
+                        >
+                          DMC Not Available
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
             </div>
 
-            <div className="mt-4 rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-4 sm:mt-6 sm:p-5">
+            {/* CGPA */}
+            <div className="mt-6 rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-5 py-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs text-slate-500 sm:text-sm">
                     Current Calculated CGPA
                   </p>
-                  <p className="mt-1 text-xl font-bold text-cyan-400 sm:text-2xl">
+
+                  <p className="mt-1 text-2xl font-bold text-cyan-400">
                     {overallCgpa !== null
                       ? overallCgpa.toFixed(2)
                       : "—"}
@@ -377,15 +473,15 @@ function Education() {
             )}
           </div>
 
-          {/* 12th */}
-          <div className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 p-4 sm:p-6 lg:p-7">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          {/* Class XII */}
+          <div className="group rounded-2xl border border-slate-800 bg-slate-900/70 p-6 transition-all duration-300 hover:border-cyan-400/20 hover:bg-slate-900 sm:p-7">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400 sm:text-sm">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-400">
                   Senior Secondary
                 </p>
 
-                <h3 className="mt-2 text-lg font-bold leading-snug text-white sm:text-xl">
+                <h3 className="text-xl font-bold text-white sm:text-2xl">
                   Senior Secondary (Class XII)
                 </h3>
 
@@ -398,25 +494,24 @@ function Education() {
                 </p>
               </div>
 
-              <div className="flex w-full flex-col items-start gap-3 lg:w-auto lg:items-end">
-                <span className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 sm:px-4 sm:py-2 sm:text-sm">
+              <div className="flex w-full flex-col items-start gap-3 sm:w-auto sm:items-end">
+                <span className="rounded-full border border-slate-700 px-4 py-2 text-xs font-medium text-slate-300">
                   2023
                 </span>
 
                 <span className="text-sm font-semibold text-cyan-400">
-                  Percentage:{" "}
-                  {(schoolDocumentMap.get("classXII")?.percentage ?? 60.4).toFixed(2)}%
+                  Percentage: 60.40%
                 </span>
 
                 <button
                   type="button"
                   onClick={() =>
-                    requestDownload(
+                    void requestDownload(
                       "12th-marksheet.pdf",
                       "Senior Secondary (Class XII) Marksheet"
                     )
                   }
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-4 py-2.5 text-xs font-semibold text-cyan-400 transition hover:bg-cyan-400 hover:text-slate-950 sm:text-sm lg:w-auto"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-4 py-2.5 text-xs font-semibold text-cyan-400 transition hover:bg-cyan-400 hover:text-slate-950 sm:w-auto sm:text-sm"
                 >
                   Download Marksheet
                   <span>↓</span>
@@ -425,12 +520,12 @@ function Education() {
                 <button
                   type="button"
                   onClick={() =>
-                    requestDownload(
+                    void requestDownload(
                       "12th-Migration Certificate.pdf",
                       "Migration Certificate"
                     )
                   }
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-4 py-2.5 text-xs font-semibold text-cyan-400 transition hover:bg-cyan-400 hover:text-slate-950 sm:text-sm lg:w-auto"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-4 py-2.5 text-xs font-semibold text-cyan-400 transition hover:bg-cyan-400 hover:text-slate-950 sm:w-auto sm:text-sm"
                 >
                   Download Migration Certificate
                   <span>↓</span>
@@ -439,15 +534,15 @@ function Education() {
             </div>
           </div>
 
-          {/* 10th */}
-          <div className="w-full rounded-2xl border border-slate-800 bg-slate-900/80 p-4 sm:p-6 lg:p-7">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          {/* Class X */}
+          <div className="group rounded-2xl border border-slate-800 bg-slate-900/70 p-6 transition-all duration-300 hover:border-cyan-400/20 hover:bg-slate-900 sm:p-7">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
-                <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400 sm:text-sm">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-400">
                   Secondary
                 </p>
 
-                <h3 className="mt-2 text-lg font-bold leading-snug text-white sm:text-xl">
+                <h3 className="text-xl font-bold text-white sm:text-2xl">
                   Secondary (Class X)
                 </h3>
 
@@ -460,25 +555,24 @@ function Education() {
                 </p>
               </div>
 
-              <div className="flex w-full flex-col items-start gap-3 lg:w-auto lg:items-end">
-                <span className="rounded-full border border-slate-700 px-3 py-1.5 text-xs text-slate-300 sm:px-4 sm:py-2 sm:text-sm">
+              <div className="flex w-full flex-col items-start gap-3 sm:w-auto sm:items-end">
+                <span className="rounded-full border border-slate-700 px-4 py-2 text-xs font-medium text-slate-300">
                   2021
                 </span>
 
                 <span className="text-sm font-semibold text-cyan-400">
-                  Percentage:{" "}
-                  {(schoolDocumentMap.get("classX")?.percentage ?? 70.4).toFixed(2)}%
+                  Percentage: 70.40%
                 </span>
 
                 <button
                   type="button"
                   onClick={() =>
-                    requestDownload(
+                    void requestDownload(
                       "10th-marksheet.pdf",
                       "Secondary (Class X) Marksheet"
                     )
                   }
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-4 py-2.5 text-xs font-semibold text-cyan-400 transition hover:bg-cyan-400 hover:text-slate-950 sm:text-sm lg:w-auto"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-4 py-2.5 text-xs font-semibold text-cyan-400 transition hover:bg-cyan-400 hover:text-slate-950 sm:w-auto sm:text-sm"
                 >
                   Download Marksheet
                   <span>↓</span>
@@ -487,12 +581,12 @@ function Education() {
                 <button
                   type="button"
                   onClick={() =>
-                    requestDownload(
+                    void requestDownload(
                       "10th-Migration Certificate.pdf",
                       "Secondary (Class X) Migration Certificate"
                     )
                   }
-                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-4 py-2.5 text-xs font-semibold text-cyan-400 transition hover:bg-cyan-400 hover:text-slate-950 sm:text-sm lg:w-auto"
+                  className="flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-4 py-2.5 text-xs font-semibold text-cyan-400 transition hover:bg-cyan-400 hover:text-slate-950 sm:w-auto sm:text-sm"
                 >
                   Download Migration Certificate
                   <span>↓</span>
@@ -501,19 +595,57 @@ function Education() {
             </div>
           </div>
         </div>
+
+        {/* Bottom Highlight */}
+        <div className="mt-8 grid gap-4 sm:grid-cols-3">
+          <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-5 py-4">
+            <p className="text-xs uppercase tracking-wider text-slate-500">
+              Current CGPA
+            </p>
+
+            <p className="mt-1 text-sm font-semibold text-white">
+              {overallCgpa !== null
+                ? overallCgpa.toFixed(2)
+                : "—"}
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-5 py-4">
+            <p className="text-xs uppercase tracking-wider text-slate-500">
+              Completed Semesters
+            </p>
+
+            <p className="mt-1 text-sm font-semibold text-white">
+              3 Semesters
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-5 py-4">
+            <p className="text-xs uppercase tracking-wider text-slate-500">
+              Academic Focus
+            </p>
+
+            <p className="mt-1 text-sm font-semibold text-white">
+              Computer Applications
+            </p>
+          </div>
+        </div>
       </div>
 
+      {/* PDF PASSWORD MODAL */}
       {showPasswordModal && downloadFile && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
                   Protected Document
                 </p>
+
                 <h2 className="mt-2 text-xl font-bold text-white">
                   Enter PDF password
                 </h2>
+
                 <p className="mt-2 text-sm text-slate-400">
                   {downloadName}
                 </p>
@@ -526,7 +658,7 @@ function Education() {
                   setDownloadFile(null)
                   setDownloadPassword("")
                 }}
-                className="text-xl text-slate-500 hover:text-white"
+                className="text-xl text-slate-500 transition hover:text-white"
                 aria-label="Close"
               >
                 ×
@@ -536,7 +668,9 @@ function Education() {
             <input
               type="password"
               value={downloadPassword}
-              onChange={(event) => setDownloadPassword(event.target.value)}
+              onChange={(event) =>
+                setDownloadPassword(event.target.value)
+              }
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   void downloadPdf(
@@ -548,7 +682,7 @@ function Education() {
               }}
               autoFocus
               placeholder="Enter PDF password"
-              className="mt-6 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-sm text-white outline-none focus:border-cyan-400"
+              className="mt-6 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-sm text-white outline-none transition focus:border-cyan-400"
             />
 
             <div className="mt-4 flex gap-3">
@@ -559,7 +693,7 @@ function Education() {
                   setDownloadFile(null)
                   setDownloadPassword("")
                 }}
-                className="flex-1 rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-300 hover:border-slate-500 hover:text-white"
+                className="flex-1 rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
               >
                 Cancel
               </button>
@@ -574,9 +708,11 @@ function Education() {
                     downloadPassword
                   )
                 }
-                className="flex-1 rounded-xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50"
+                className="flex-1 rounded-xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-300 disabled:opacity-50"
               >
-                {isDownloading ? "Downloading..." : "Download"}
+                {isDownloading
+                  ? "Downloading..."
+                  : "Download"}
               </button>
             </div>
           </div>

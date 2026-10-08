@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+﻿import { useEffect, useState } from "react"
 
 function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -110,6 +110,7 @@ function Navbar() {
         }`}
       >
         <nav className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
+
           {/* ================= LOGO ================= */}
 
           <a
@@ -131,7 +132,8 @@ function Navbar() {
           <div className="hidden items-center gap-1 lg:flex">
             {navLinks.map((link) => {
               const sectionId = link.href.replace("#", "")
-              const isActive = activeSection === sectionId
+              const isActive =
+                activeSection === sectionId
 
               return (
                 <a
@@ -158,21 +160,61 @@ function Navbar() {
             })}
           </div>
 
-          {/* ================= DESKTOP LET'S TALK ================= */}
+          {/* ================================================= */}
+          {/* DESKTOP ACTION BUTTONS */}
+          {/* ================================================= */}
 
-          <a
-            href="#contact"
-            className="hidden items-center rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-4 py-2 text-sm font-semibold text-cyan-400 transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-400 hover:text-slate-950 hover:shadow-lg hover:shadow-cyan-400/20 lg:inline-flex"
-          >
-            Let's Talk
-          </a>
+          <div className="hidden items-center gap-2 lg:flex">
 
-          {/* ================= MOBILE MENU BUTTON ================= */}
+            {/* ================= ADMIN LOGIN ================= */}
+
+            <a
+              href="/admin-pdf-security"
+              className="group inline-flex items-center gap-2 rounded-lg border border-purple-400/40 bg-purple-400/5 px-4 py-2 text-sm font-semibold text-purple-300 transition-all duration-300 hover:-translate-y-0.5 hover:border-purple-400 hover:bg-purple-400 hover:text-white hover:shadow-lg hover:shadow-purple-400/20"
+            >
+              {/* Lock Icon */}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-4 w-4 transition-transform duration-300 group-hover:scale-110"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <rect
+                  width="18"
+                  height="11"
+                  x="3"
+                  y="11"
+                  rx="2"
+                />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+
+              Admin Login
+            </a>
+
+            {/* ================= LET'S TALK ================= */}
+
+            <a
+              href="#contact"
+              className="inline-flex items-center rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-4 py-2 text-sm font-semibold text-cyan-400 transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-400 hover:text-slate-950 hover:shadow-lg hover:shadow-cyan-400/20"
+            >
+              Let's Talk
+            </a>
+
+          </div>
+
+          {/* ================================================= */}
+          {/* MOBILE MENU BUTTON */}
+          {/* ================================================= */}
 
           <button
             type="button"
             aria-label={
-              isMenuOpen ? "Close menu" : "Open menu"
+              isMenuOpen
+                ? "Close menu"
+                : "Open menu"
             }
             aria-expanded={isMenuOpen}
             onClick={() =>
@@ -227,11 +269,14 @@ function Navbar() {
         <div
           className={`overflow-hidden border-t border-slate-800/30 bg-transparent backdrop-blur-md transition-all duration-300 lg:hidden ${
             isMenuOpen
-              ? "max-h-[600px] opacity-100"
+              ? "max-h-[700px] opacity-100"
               : "max-h-0 border-t-0 opacity-0"
           }`}
         >
           <div className="space-y-1 px-4 py-4 sm:px-6">
+
+            {/* ================= NAV LINKS ================= */}
+
             {navLinks.map((link) => {
               const sectionId =
                 link.href.replace("#", "")
@@ -265,15 +310,49 @@ function Navbar() {
               )
             })}
 
-            {/* Mobile Let's Talk */}
+            {/* ================================================= */}
+            {/* MOBILE ADMIN LOGIN */}
+            {/* ================================================= */}
+
+            <a
+              href="/admin-pdf-security"
+              onClick={handleLinkClick}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-purple-400/40 bg-purple-400/5 px-4 py-3 text-sm font-semibold text-purple-300 transition-all duration-300 hover:-translate-y-0.5 hover:border-purple-400 hover:bg-purple-400 hover:text-white hover:shadow-lg hover:shadow-purple-400/20"
+            >
+              {/* Lock Icon */}
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <rect
+                  width="18"
+                  height="11"
+                  x="3"
+                  y="11"
+                  rx="2"
+                />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+
+              Admin Login
+            </a>
+
+            {/* ================================================= */}
+            {/* MOBILE LET'S TALK */}
+            {/* ================================================= */}
 
             <a
               href="#contact"
               onClick={handleLinkClick}
-              className="mt-3 flex w-full items-center justify-center rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-4 py-3 text-sm font-semibold text-cyan-400 transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-400 hover:text-slate-950"
+              className="mt-2 flex w-full items-center justify-center rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-4 py-3 text-sm font-semibold text-cyan-400 transition-all duration-300 hover:-translate-y-0.5 hover:bg-cyan-400 hover:text-slate-950"
             >
               Let's Talk
             </a>
+
           </div>
         </div>
       </header>

@@ -7,7 +7,7 @@ import Experience from "./components/Experience"
 import Education from "./components/Education"
 import Contact from "./components/Contact"
 import Footer from "./components/Footer"
-import AdminPdfSecurity from "./components/AdminPdfSecurity"
+import AdminPdfSecurity from "./components/AdminPdfSecurity";
 
 function App() {
   const isAdminPage =

@@ -33,10 +33,7 @@ function Hero() {
     const timer = setTimeout(() => {
       if (!isDeleting) {
         setTypedRole(
-          currentRole.slice(
-            0,
-            typedRole.length + 1
-          )
+          currentRole.slice(0, typedRole.length + 1)
         )
 
         if (typedRole === currentRole) {
@@ -46,18 +43,14 @@ function Hero() {
         }
       } else {
         setTypedRole(
-          currentRole.slice(
-            0,
-            typedRole.length - 1
-          )
+          currentRole.slice(0, typedRole.length - 1)
         )
 
         if (typedRole === "") {
           setIsDeleting(false)
 
           setRoleIndex(
-            (prev) =>
-              (prev + 1) % roles.length
+            (prev) => (prev + 1) % roles.length
           )
         }
       }
@@ -94,11 +87,9 @@ function Hero() {
         `${API_BASE}/api/protected-pdf`,
         {
           method: "POST",
-
           headers: {
             "Content-Type": "application/json",
           },
-
           body: JSON.stringify({
             fileName: "resume.pdf",
             password: enteredPassword,
@@ -118,12 +109,10 @@ function Hero() {
             "application/json"
           )
         ) {
-          const data =
-            await response.json()
+          const data = await response.json()
 
           errorMessage =
-            data.message ||
-            errorMessage
+            data.message || errorMessage
         }
 
         throw new Error(errorMessage)
@@ -139,8 +128,7 @@ function Hero() {
         )
       }
 
-      const blob =
-        await response.blob()
+      const blob = await response.blob()
 
       if (!blob.size) {
         throw new Error(
@@ -182,50 +170,47 @@ function Hero() {
     }
   }
 
-  const handleResumeDownload =
-    async () => {
-      try {
-        setIsCheckingResume(true)
-        setResumeError("")
+  const handleResumeDownload = async () => {
+    try {
+      setIsCheckingResume(true)
+      setResumeError("")
 
-        const response = await fetch(
-          `${API_BASE}/api/protected-pdf/status/resume.pdf`
+      const response = await fetch(
+        `${API_BASE}/api/protected-pdf/status/resume.pdf`
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          data.message ||
+            "Unable to check resume status."
         )
-
-        const data =
-          await response.json()
-
-        if (!response.ok) {
-          throw new Error(
-            data.message ||
-              "Unable to check resume status."
-          )
-        }
-
-        if (data.protected) {
-          setPassword("")
-          setResumeError("")
-          setShowPasswordModal(true)
-
-          return
-        }
-
-        await downloadResume("")
-      } catch (error) {
-        console.error(
-          "Resume status error:",
-          error
-        )
-
-        setResumeError(
-          error instanceof Error
-            ? error.message
-            : "Unable to access resume."
-        )
-      } finally {
-        setIsCheckingResume(false)
       }
+
+      if (data.protected) {
+        setPassword("")
+        setResumeError("")
+        setShowPasswordModal(true)
+        return
+      }
+
+      await downloadResume("")
+    } catch (error) {
+      console.error(
+        "Resume status error:",
+        error
+      )
+
+      setResumeError(
+        error instanceof Error
+          ? error.message
+          : "Unable to access resume."
+      )
+    } finally {
+      setIsCheckingResume(false)
     }
+  }
 
   const handlePasswordSubmit = async (
     event: FormEvent<HTMLFormElement>
@@ -236,7 +221,6 @@ function Hero() {
       setResumeError(
         "Please enter the password."
       )
-
       return
     }
 
@@ -247,26 +231,27 @@ function Hero() {
     <>
       <section
         id="home"
-        className="relative min-h-[calc(100vh-4rem)] overflow-hidden px-4 py-14 sm:px-6 sm:py-20 lg:px-8 lg:py-24"
+        className="relative min-h-[calc(100vh-4rem)] overflow-hidden px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20"
       >
         {/* Background Glow */}
 
-        <div className="pointer-events-none absolute left-[5%] top-[15%] -z-10 h-64 w-64 rounded-full bg-cyan-500/10 blur-[120px]" />
+        <div className="pointer-events-none absolute left-[8%] top-[15%] -z-10 h-56 w-56 rounded-full bg-cyan-500/10 blur-[110px]" />
 
-        <div className="pointer-events-none absolute bottom-[5%] right-[5%] -z-10 h-72 w-72 rounded-full bg-blue-500/10 blur-[130px]" />
+        <div className="pointer-events-none absolute bottom-[5%] right-[8%] -z-10 h-64 w-64 rounded-full bg-blue-500/10 blur-[120px]" />
 
         {/* Main Container */}
 
-        <div className="mx-auto grid w-full max-w-7xl items-center gap-12 lg:grid-cols-2 lg:gap-16">
+        <div className="mx-auto grid w-full max-w-6xl items-center gap-10 lg:grid-cols-[1.05fr_0.95fr] lg:gap-14">
           {/* LEFT CONTENT */}
 
           <div className="min-w-0 text-center lg:text-left">
+
             {/* Availability */}
 
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-green-400 bg-green-400/5 px-4 py-2 text-xs font-medium text-green-400 backdrop-blur-sm sm:text-sm">
-              <span className="relative flex h-2.5 w-2.5">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-green-400/40 bg-green-400/5 px-3.5 py-1.5 text-[11px] font-medium text-green-400 backdrop-blur-sm sm:text-xs">
+              <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-60" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-400" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-green-400" />
               </span>
 
               Available for Opportunities
@@ -274,15 +259,14 @@ function Hero() {
 
             {/* Greeting */}
 
-            <p className="text-base font-medium text-slate-400 sm:text-lg">
+            <p className="text-sm font-medium text-slate-400 sm:text-base">
               Hi, I'm
             </p>
 
             {/* NAME */}
 
-            <h1 className="mt-2 whitespace-nowrap text-[clamp(2rem,8vw,3.75rem)] font-black leading-tight tracking-tight text-white">
-              <span>Divyanshu </span>
-
+            <h1 className="mt-1 text-[clamp(2rem,6vw,3.35rem)] font-black leading-tight tracking-tight text-white">
+              Divyanshu{" "}
               <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent">
                 Singh
               </span>
@@ -290,17 +274,17 @@ function Hero() {
 
             {/* Typing Role */}
 
-            <div className="mt-5 flex min-h-[36px] items-center justify-center lg:justify-start">
-              <span className="text-base font-semibold text-slate-300 sm:text-xl">
+            <div className="mt-3 flex min-h-[30px] items-center justify-center lg:justify-start">
+              <span className="text-sm font-semibold text-slate-300 sm:text-lg">
                 {typedRole}
               </span>
 
-              <span className="ml-1 h-5 w-[2px] animate-pulse bg-cyan-400 sm:h-6" />
+              <span className="ml-1 h-5 w-[2px] animate-pulse bg-cyan-400" />
             </div>
 
             {/* Description */}
 
-            <p className="mx-auto mt-6 max-w-xl text-base leading-7 text-slate-400 sm:text-lg sm:leading-8 lg:mx-0">
+            <p className="mx-auto mt-5 max-w-lg text-sm leading-6 text-slate-400 sm:text-base sm:leading-7 lg:mx-0">
               I build modern, responsive and user-friendly web
               applications with a focus on clean code, creative
               interfaces and practical solutions.
@@ -308,12 +292,12 @@ function Hero() {
 
             {/* Buttons */}
 
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center lg:justify-start">
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:justify-center lg:justify-start">
               {/* Projects */}
 
               <a
                 href="#projects"
-                className="group inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-400 px-6 py-3.5 text-sm font-bold text-slate-950 transition-all duration-300 hover:-translate-y-1 hover:bg-cyan-300 hover:shadow-lg hover:shadow-cyan-400/20 sm:w-auto"
+                className="group inline-flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-400 px-5 py-3 text-sm font-bold text-slate-950 transition-all duration-300 hover:-translate-y-1 hover:bg-cyan-300 hover:shadow-lg hover:shadow-cyan-400/20 sm:w-auto"
               >
                 View Projects
 
@@ -326,7 +310,7 @@ function Hero() {
 
               <a
                 href="#contact"
-                className="inline-flex w-full items-center justify-center rounded-lg border border-slate-700 bg-slate-900/40 px-6 py-3.5 text-sm font-semibold text-white backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/50 hover:bg-cyan-400/5 hover:text-cyan-400 sm:w-auto"
+                className="inline-flex w-full items-center justify-center rounded-lg border border-slate-700 bg-slate-900/40 px-5 py-3 text-sm font-semibold text-white backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/50 hover:bg-cyan-400/5 hover:text-cyan-400 sm:w-auto"
               >
                 Contact Me
               </a>
@@ -340,7 +324,7 @@ function Hero() {
                   isCheckingResume ||
                   isDownloadingResume
                 }
-                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 px-6 py-3.5 text-sm font-semibold text-slate-300 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/50 hover:text-cyan-400 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-700 px-5 py-3 text-sm font-semibold text-slate-300 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/50 hover:text-cyan-400 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
                 {isCheckingResume
                   ? "Checking..."
@@ -378,22 +362,22 @@ function Hero() {
             {/* Resume Error */}
 
             {resumeError && (
-              <div className="mt-4 w-full max-w-xl rounded-xl border border-red-400/20 bg-red-400/5 px-4 py-3 text-left text-sm text-red-300 lg:max-w-none">
+              <div className="mx-auto mt-4 max-w-lg rounded-xl border border-red-400/20 bg-red-400/5 px-4 py-3 text-left text-sm text-red-300 lg:mx-0">
                 {resumeError}
               </div>
             )}
 
             {/* Social Links */}
 
-            <div className="mt-8 flex items-center justify-center gap-5 lg:justify-start">
-              <span className="text-xs font-medium uppercase tracking-[0.25em] text-slate-600">
+            <div className="mt-7 flex items-center justify-center gap-5 lg:justify-start">
+              <span className="text-[10px] font-medium uppercase tracking-[0.25em] text-slate-600">
                 Connect
               </span>
 
               {/* GitHub */}
 
               <a
-                href="https://github.com/"
+                href="https://github.com/divyanshusingh-dev"
                 target="_blank"
                 rel="noreferrer"
                 aria-label="GitHub"
@@ -462,145 +446,133 @@ function Hero() {
           {/* RIGHT CODE CARD */}
 
           <div className="relative w-full min-w-0">
-            {/* Glow */}
+            <div className="pointer-events-none absolute left-1/2 top-1/2 h-52 w-52 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-500/10 blur-[100px]" />
 
-            <div className="pointer-events-none absolute left-1/2 top-1/2 h-56 w-56 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cyan-500/10 blur-[100px]" />
+            <div className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 shadow-xl backdrop-blur-sm">
+              {/* Window Header */}
 
-            {/* Code Window */}
+              <div className="flex h-12 items-center justify-between border-b border-slate-700/70 px-4 sm:h-14 sm:px-5">
+                <div className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-yellow-400" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-green-400" />
+                </div>
 
-            <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60 shadow-xl backdrop-blur-sm">
-              <div className="overflow-x-auto px-4 py-5 font-mono text-xs leading-6 sm:px-5 sm:py-6 sm:text-sm sm:leading-7">
-                {/* Header */}
+                <span className="font-mono text-[11px] text-slate-500 sm:text-xs">
+                  developer.ts
+                </span>
+              </div>
 
-                <div className="flex h-14 items-center justify-between border-b border-slate-700/70 px-4 sm:h-16 sm:px-5">
-                  <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-red-400" />
-                    <span className="h-3 w-3 rounded-full bg-yellow-400" />
-                    <span className="h-3 w-3 rounded-full bg-green-400" />
-                  </div>
+              {/* Code */}
 
-                  <span className="font-mono text-xs text-slate-500 sm:text-sm">
-                    developer.ts
+              <div className="overflow-x-auto px-5 py-6 font-mono text-xs leading-7 sm:px-6 sm:py-7 sm:text-sm sm:leading-8">
+                <div className="whitespace-nowrap">
+                  <span className="text-purple-400">
+                    const
+                  </span>{" "}
+                  <span className="text-cyan-400">
+                    developer
+                  </span>{" "}
+                  <span className="text-slate-300">
+                    =
+                  </span>{" "}
+                  <span className="text-slate-300">
+                    {"{"}
                   </span>
                 </div>
 
-                {/* Code */}
+                <div className="ml-5 whitespace-nowrap sm:ml-6">
+                  <span className="text-slate-400">
+                    name:
+                  </span>{" "}
+                  <span className="text-emerald-400">
+                    "Divyanshu Singh"
+                  </span>
+                  <span className="text-slate-300">
+                    ,
+                  </span>
+                </div>
 
-                <div className="overflow-x-auto px-5 py-6 font-mono text-xs leading-7 sm:px-6 sm:py-7 sm:text-sm sm:leading-8">
-                  <div className="whitespace-nowrap">
-                    <span className="text-purple-400">
-                      const
-                    </span>{" "}
-                    <span className="text-cyan-400">
-                      developer
-                    </span>{" "}
-                    <span className="text-slate-300">
-                      =
-                    </span>{" "}
-                    <span className="text-slate-300">
-                      {"{"}
-                    </span>
-                  </div>
+                <div className="ml-5 whitespace-nowrap sm:ml-6">
+                  <span className="text-slate-400">
+                    role:
+                  </span>{" "}
+                  <span className="text-emerald-400">
+                    "Jr. Software Developer"
+                  </span>
+                  <span className="text-slate-300">
+                    ,
+                  </span>
+                </div>
 
-                  <div className="ml-5 whitespace-nowrap sm:ml-6">
-                    <span className="text-slate-400">
-                      name:
-                    </span>{" "}
-                    <span className="text-emerald-400">
-                      "Divyanshu Singh"
-                    </span>
-                    <span className="text-slate-300">
-                      ,
-                    </span>
-                  </div>
+                <div className="ml-5 whitespace-nowrap sm:ml-6">
+                  <span className="text-slate-400">
+                    focus:
+                  </span>{" "}
+                  <span className="text-emerald-400">
+                    "Web Development"
+                  </span>
+                  <span className="text-slate-300">
+                    ,
+                  </span>
+                </div>
 
-                  <div className="ml-5 whitespace-nowrap sm:ml-6">
-                    <span className="text-slate-400">
-                      role:
-                    </span>{" "}
-                    <span className="text-emerald-400">
-                      "Jr. Software Developer"
-                    </span>
-                    <span className="text-slate-300">
-                      ,
-                    </span>
-                  </div>
+                <div className="ml-5 whitespace-nowrap sm:ml-6">
+                  <span className="text-slate-400">
+                    learning:
+                  </span>{" "}
+                  <span className="text-emerald-400">
+                    "Backend & Cloud"
+                  </span>
+                </div>
 
-                  <div className="ml-5 whitespace-nowrap sm:ml-6">
-                    <span className="text-slate-400">
-                      focus:
-                    </span>{" "}
-                    <span className="text-emerald-400">
-                      "Web Development"
-                    </span>
-                    <span className="text-slate-300">
-                      ,
-                    </span>
-                  </div>
+                <div className="text-slate-300">
+                  {"}"}
+                </div>
 
-                  <div className="ml-5 whitespace-nowrap sm:ml-6">
-                    <span className="text-slate-400">
-                      learning:
-                    </span>{" "}
-                    <span className="text-emerald-400">
-                      "Backend & Cloud"
-                    </span>
-                  </div>
+                <div className="my-5 h-px w-full bg-slate-700/70" />
 
-                  <div className="text-slate-300">
-                    {"}"}
-                  </div>
+                <div className="whitespace-nowrap">
+                  <span className="text-purple-400">
+                    while
+                  </span>{" "}
+                  <span className="text-slate-300">
+                    (
+                  </span>
+                  <span className="text-cyan-400">
+                    learning
+                  </span>
+                  <span className="text-slate-300">
+                    ) {"{"}
+                  </span>
+                </div>
 
-                  {/* Divider */}
+                <div className="ml-5 whitespace-nowrap text-slate-400 sm:ml-6">
+                  build();
+                </div>
 
-                  <div className="my-5 h-px w-full bg-slate-700/70" />
+                <div className="ml-5 whitespace-nowrap text-slate-400 sm:ml-6">
+                  improve();
+                </div>
 
-                  {/* Learning Loop */}
+                <div className="ml-5 whitespace-nowrap text-slate-400 sm:ml-6">
+                  repeat();
+                </div>
 
-                  <div className="whitespace-nowrap">
-                    <span className="text-purple-400">
-                      while
-                    </span>{" "}
-                    <span className="text-slate-300">
-                      (
-                    </span>
-                    <span className="text-cyan-400">
-                      learning
-                    </span>
-                    <span className="text-slate-300">
-                      ) {"{"}
-                    </span>
-                  </div>
+                <div className="text-slate-300">
+                  {"}"}
+                </div>
 
-                  <div className="ml-5 whitespace-nowrap text-slate-400 sm:ml-6">
-                    build();
-                  </div>
+                <div className="mt-5 flex items-center gap-2 whitespace-nowrap text-emerald-400">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
 
-                  <div className="ml-5 whitespace-nowrap text-slate-400 sm:ml-6">
-                    improve();
-                  </div>
+                  <span>
+                    Ready to build
+                  </span>
 
-                  <div className="ml-5 whitespace-nowrap text-slate-400 sm:ml-6">
-                    repeat();
-                  </div>
-
-                  <div className="text-slate-300">
-                    {"}"}
-                  </div>
-
-                  {/* Status */}
-
-                  <div className="mt-5 flex items-center gap-2 whitespace-nowrap text-emerald-400">
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
-
-                    <span>
-                      Ready to build
-                    </span>
-
-                    <span className="animate-pulse">
-                      _
-                    </span>
-                  </div>
+                  <span className="animate-pulse">
+                    _
+                  </span>
                 </div>
               </div>
 
@@ -615,13 +587,13 @@ function Hero() {
 
         <a
           href="#about"
-          className="absolute bottom-6 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 text-slate-600 transition hover:text-cyan-400 sm:flex"
+          className="absolute bottom-5 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-2 text-slate-600 transition hover:text-cyan-400 sm:flex"
         >
-          <span className="text-[10px] font-semibold uppercase tracking-[0.3em]">
+          <span className="text-[9px] font-semibold uppercase tracking-[0.3em]">
             Scroll
           </span>
 
-          <span className="flex h-8 w-5 items-start justify-center rounded-full border border-slate-700 p-1">
+          <span className="flex h-7 w-5 items-start justify-center rounded-full border border-slate-700 p-1">
             <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-cyan-400" />
           </span>
         </a>
@@ -658,9 +630,7 @@ function Hero() {
               </button>
             </div>
 
-            <form
-              onSubmit={handlePasswordSubmit}
-            >
+            <form onSubmit={handlePasswordSubmit}>
               <label
                 htmlFor="hero-resume-password"
                 className="mb-2 block text-sm font-medium text-slate-300"
@@ -674,10 +644,7 @@ function Hero() {
                 type="password"
                 value={password}
                 onChange={(event) => {
-                  setPassword(
-                    event.target.value
-                  )
-
+                  setPassword(event.target.value)
                   setResumeError("")
                 }}
                 placeholder="Enter password"

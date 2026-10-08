@@ -259,56 +259,56 @@ function Contact() {
   return (
     <section
       id="contact"
-      className="w-full overflow-hidden border-t border-slate-800 bg-transparent px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24"
+      className="w-full overflow-hidden border-t border-slate-800 bg-transparent px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20"
     >
-      <div className="mx-auto max-w-7xl">
+      <div className="mx-auto max-w-6xl">
         {/* Section Heading */}
-        <div className="mb-12 text-center">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-cyan-400">
+        <div className="mb-9 text-center">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">
             Get In Touch
           </p>
 
-          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+          <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-4xl">
             Let's Work Together
           </h2>
 
-          <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">
+          <p className="mx-auto mt-3 max-w-xl text-xs leading-6 text-slate-400 sm:text-sm">
             Have a project, internship opportunity, or collaboration in mind?
             Feel free to reach out. I would be happy to connect with you.
           </p>
         </div>
 
         {/* Contact Layout */}
-        <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr]">
+        <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
           {/* Left Side */}
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-xl backdrop-blur-sm sm:p-8">
-            <div className="mb-8">
-              <h3 className="text-2xl font-bold text-white">
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-xl backdrop-blur-sm sm:p-6">
+            <div className="mb-6">
+              <h3 className="text-xl font-bold text-white">
                 Contact Information
               </h3>
 
-              <p className="mt-2 text-sm leading-6 text-slate-400">
+              <p className="mt-1.5 text-xs leading-5 text-slate-400 sm:text-sm">
                 You can contact me directly through email, phone, or social
                 platforms.
               </p>
             </div>
 
-            <div className="space-y-5">
+            <div className="space-y-3.5">
               {/* Email */}
               <a
                 href="mailto:divyanshusingh2006r@gmail.com"
-                className="group flex items-center gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-4 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-500/40 hover:bg-slate-950"
+                className="group flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-500/40 hover:bg-slate-950"
               >
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-xl text-cyan-400">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-lg text-cyan-400">
                   ✉
                 </div>
 
                 <div className="min-w-0">
-                  <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
                     Email
                   </p>
 
-                  <p className="mt-1 break-all text-sm text-slate-200 transition group-hover:text-cyan-400">
+                  <p className="mt-0.5 break-all text-xs text-slate-200 transition group-hover:text-cyan-400 sm:text-sm">
                     divyanshusingh2006r@gmail.com
                   </p>
                 </div>
@@ -317,33 +317,33 @@ function Contact() {
               {/* Phone */}
               <a
                 href="tel:+919473681245"
-                className="group flex items-center gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-4 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-500/40 hover:bg-slate-950"
+                className="group flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-500/40 hover:bg-slate-950"
               >
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-xl text-cyan-400">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-lg text-cyan-400">
                   ☎
                 </div>
 
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
                     Phone
                   </p>
 
-                  <p className="mt-1 text-sm text-slate-200 transition group-hover:text-cyan-400">
+                  <p className="mt-0.5 text-xs text-slate-200 transition group-hover:text-cyan-400 sm:text-sm">
                     +91 94736 81245
                   </p>
                 </div>
               </a>
 
               {/* Location */}
-              <div className="flex items-center gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">
+              <div className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
                     strokeWidth="1.8"
-                    className="h-6 w-6"
+                    className="h-5 w-5"
                   >
                     <path
                       strokeLinecap="round"
@@ -356,11 +356,11 @@ function Contact() {
                 </div>
 
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
                     Location
                   </p>
 
-                  <p className="mt-1 text-sm text-slate-200">
+                  <p className="mt-0.5 text-xs text-slate-200 sm:text-sm">
                     Jaunpur, Uttar Pradesh, India
                   </p>
                 </div>
@@ -368,17 +368,17 @@ function Contact() {
             </div>
 
             {/* Social */}
-            <div className="mt-8 border-t border-slate-800 pt-7">
-              <p className="mb-4 text-sm font-semibold text-white">
+            <div className="mt-6 border-t border-slate-800 pt-5">
+              <p className="mb-3 text-xs font-semibold text-white sm:text-sm">
                 Connect With Me
               </p>
 
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-wrap gap-2.5">
                 <a
                   href="https://linkedin.com/in/divyanshusingh077"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-cyan-500/50 hover:text-cyan-400"
+                  className="rounded-lg border border-slate-700 bg-slate-950/70 px-3.5 py-2 text-xs font-medium text-slate-300 transition hover:border-cyan-500/50 hover:text-cyan-400"
                 >
                   LinkedIn
                 </a>
@@ -387,7 +387,7 @@ function Contact() {
                   href="https://github.com/divyanshusingh-dev"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-cyan-500/50 hover:text-cyan-400"
+                  className="rounded-lg border border-slate-700 bg-slate-950/70 px-3.5 py-2 text-xs font-medium text-slate-300 transition hover:border-cyan-500/50 hover:text-cyan-400"
                 >
                   GitHub
                 </a>
@@ -395,39 +395,41 @@ function Contact() {
                 <button
                   type="button"
                   onClick={handleResumeClick}
-                  className="rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-cyan-500/50 hover:text-cyan-400"
+                  className="rounded-lg border border-slate-700 bg-slate-950/70 px-3.5 py-2 text-xs font-medium text-slate-300 transition hover:border-cyan-500/50 hover:text-cyan-400"
                 >
                   Download Resume
                 </button>
               </div>
 
               {resumeError && !isResumeModalOpen && (
-                <p className="mt-3 text-xs text-red-400">{resumeError}</p>
+                <p className="mt-2 text-[11px] text-red-400">
+                  {resumeError}
+                </p>
               )}
             </div>
           </div>
 
           {/* Right Side - Form */}
-          <div className="relative overflow-visible rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-xl backdrop-blur-sm sm:p-8">
-            <div className="pointer-events-none absolute -right-20 -top-20 h-40 w-40 rounded-full bg-cyan-500/10 blur-3xl" />
+          <div className="relative overflow-visible rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-xl backdrop-blur-sm sm:p-6">
+            <div className="pointer-events-none absolute -right-16 -top-16 h-32 w-32 rounded-full bg-cyan-500/10 blur-3xl" />
 
             <div className="relative">
-              <h3 className="text-2xl font-bold text-white">
+              <h3 className="text-xl font-bold text-white">
                 Send Me a Message
               </h3>
 
-              <p className="mt-2 text-sm leading-6 text-slate-400">
+              <p className="mt-1.5 text-xs leading-5 text-slate-400 sm:text-sm">
                 Fill out the form below and I will get back to you as soon as
                 possible.
               </p>
 
-              <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+              <form onSubmit={handleSubmit} className="mt-6 space-y-4">
                 {/* Name + Email */}
-                <div className="grid gap-5 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label
                       htmlFor="name"
-                      className="mb-2 block text-sm font-medium text-slate-300"
+                      className="mb-1.5 block text-xs font-medium text-slate-300"
                     >
                       Your Name
                     </label>
@@ -440,14 +442,14 @@ function Contact() {
                       onChange={handleChange}
                       placeholder="Enter your name"
                       required
-                      className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3.5 py-3 text-xs text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10 sm:text-sm"
                     />
                   </div>
 
                   <div>
                     <label
                       htmlFor="email"
-                      className="mb-2 block text-sm font-medium text-slate-300"
+                      className="mb-1.5 block text-xs font-medium text-slate-300"
                     >
                       Your Email
                     </label>
@@ -460,21 +462,21 @@ function Contact() {
                       onChange={handleChange}
                       placeholder="you@example.com"
                       required
-                      className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3.5 py-3 text-xs text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10 sm:text-sm"
                     />
                   </div>
                 </div>
 
                 {/* Phone + Purpose */}
-                <div className="grid gap-5 sm:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2">
                   {/* Phone */}
                   <div>
                     <label
                       htmlFor="phone"
-                      className="mb-2 block text-sm font-medium text-slate-300"
+                      className="mb-1.5 block text-xs font-medium text-slate-300"
                     >
                       Phone Number
-                      <span className="ml-1 text-xs text-slate-500">
+                      <span className="ml-1 text-[10px] text-slate-500">
                         (Optional)
                       </span>
                     </label>
@@ -486,13 +488,13 @@ function Contact() {
                       value={formData.phone}
                       onChange={handleChange}
                       placeholder="+91 XXXXX XXXXX"
-                      className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10"
+                      className="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3.5 py-3 text-xs text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10 sm:text-sm"
                     />
                   </div>
 
                   {/* Purpose */}
                   <div ref={purposeRef} className="relative">
-                    <label className="mb-2 block text-sm font-medium text-slate-300">
+                    <label className="mb-1.5 block text-xs font-medium text-slate-300">
                       Purpose
                     </label>
 
@@ -500,16 +502,16 @@ function Contact() {
                     <button
                       type="button"
                       onClick={() => setIsPurposeOpen((prev) => !prev)}
-                      className={`group flex w-full items-center justify-between rounded-xl border px-4 py-3.5 text-left transition-all duration-300 ${
+                      className={`group flex w-full items-center justify-between rounded-lg border px-3.5 py-3 text-left transition-all duration-300 ${
                         isPurposeOpen
                           ? "border-cyan-500 bg-slate-950 shadow-lg shadow-cyan-500/5"
                           : "border-slate-700 bg-slate-950/70 hover:border-slate-600"
                       }`}
                     >
-                      <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex min-w-0 items-center gap-2.5">
                         {/* Icon */}
                         <div
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition ${
+                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md transition ${
                             formData.purpose
                               ? "bg-cyan-500/10 text-cyan-400"
                               : "bg-slate-800 text-slate-500"
@@ -521,7 +523,7 @@ function Contact() {
                             fill="none"
                             stroke="currentColor"
                             strokeWidth="1.8"
-                            className="h-4 w-4"
+                            className="h-3.5 w-3.5"
                           >
                             <path
                               strokeLinecap="round"
@@ -546,7 +548,7 @@ function Contact() {
 
                         <div className="min-w-0">
                           <p
-                            className={`truncate text-sm ${
+                            className={`truncate text-xs ${
                               formData.purpose
                                 ? "font-medium text-white"
                                 : "text-slate-600"
@@ -556,7 +558,7 @@ function Contact() {
                           </p>
 
                           {formData.purpose && (
-                            <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                            <p className="mt-0.5 truncate text-[10px] text-slate-500">
                               Click to change
                             </p>
                           )}
@@ -570,7 +572,7 @@ function Contact() {
                         fill="none"
                         stroke="currentColor"
                         strokeWidth="2"
-                        className={`ml-3 h-4 w-4 shrink-0 transition-all duration-300 ${
+                        className={`ml-2 h-3.5 w-3.5 shrink-0 transition-all duration-300 ${
                           isPurposeOpen
                             ? "rotate-180 text-cyan-400"
                             : "text-slate-500 group-hover:text-slate-300"
@@ -587,16 +589,16 @@ function Contact() {
                     {/* Dropdown Menu */}
                     {isPurposeOpen && (
                       <div className="absolute left-0 right-0 top-full z-[100] mt-2">
-                        <div className="overflow-hidden rounded-2xl border border-slate-700 bg-[#07101f]/95 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl">
+                        <div className="overflow-hidden rounded-xl border border-slate-700 bg-[#07101f]/95 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-xl">
                           {/* Header */}
-                          <div className="border-b border-slate-800 px-3 pb-2.5 pt-2">
-                            <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                          <div className="border-b border-slate-800 px-2.5 pb-2 pt-1.5">
+                            <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">
                               Choose Purpose
                             </p>
                           </div>
 
                           {/* Options */}
-                          <div className="mt-1 max-h-72 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:#334155_transparent]">
+                          <div className="mt-1 max-h-64 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:#334155_transparent]">
                             {purposeOptions.map((option) => {
                               const isSelected =
                                 formData.purpose === option.title;
@@ -608,7 +610,7 @@ function Contact() {
                                   onClick={() =>
                                     handlePurposeSelect(option.title)
                                   }
-                                  className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-200 ${
+                                  className={`group flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition-all duration-200 ${
                                     isSelected
                                       ? "bg-cyan-500/10"
                                       : "hover:bg-white/[0.04]"
@@ -616,7 +618,7 @@ function Contact() {
                                 >
                                   {/* Option Icon */}
                                   <div
-                                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-all ${
+                                    className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md transition-all ${
                                       isSelected
                                         ? "bg-cyan-500/15 text-cyan-400"
                                         : "bg-slate-800/80 text-slate-500 group-hover:bg-slate-700 group-hover:text-slate-300"
@@ -629,7 +631,7 @@ function Contact() {
                                         fill="none"
                                         stroke="currentColor"
                                         strokeWidth="2"
-                                        className="h-4 w-4"
+                                        className="h-3.5 w-3.5"
                                       >
                                         <path
                                           strokeLinecap="round"
@@ -645,7 +647,7 @@ function Contact() {
                                   {/* Text */}
                                   <div className="min-w-0 flex-1">
                                     <p
-                                      className={`truncate text-sm font-medium ${
+                                      className={`truncate text-xs font-medium ${
                                         isSelected
                                           ? "text-cyan-400"
                                           : "text-slate-200 group-hover:text-white"
@@ -654,7 +656,7 @@ function Contact() {
                                       {option.title}
                                     </p>
 
-                                    <p className="mt-0.5 truncate text-[11px] text-slate-500 group-hover:text-slate-400">
+                                    <p className="mt-0.5 truncate text-[10px] text-slate-500 group-hover:text-slate-400">
                                       {option.description}
                                     </p>
                                   </div>
@@ -682,7 +684,7 @@ function Contact() {
                 <div>
                   <label
                     htmlFor="message"
-                    className="mb-2 block text-sm font-medium text-slate-300"
+                    className="mb-1.5 block text-xs font-medium text-slate-300"
                   >
                     Message
                   </label>
@@ -690,24 +692,24 @@ function Contact() {
                   <textarea
                     id="message"
                     name="message"
-                    rows={6}
+                    rows={5}
                     value={formData.message}
                     onChange={handleChange}
                     placeholder="Write your message here..."
                     required
-                    className="w-full resize-none rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10"
+                    className="w-full resize-none rounded-lg border border-slate-700 bg-slate-950/70 px-3.5 py-3 text-xs text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10 sm:text-sm"
                   />
                 </div>
 
                 {/* Status */}
                 {status === "success" && (
-                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">
+                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-3.5 py-2.5 text-xs text-emerald-400">
                     ✓ Message sent successfully!
                   </div>
                 )}
 
                 {status && status !== "success" && (
-                  <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                  <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-400">
                     {status}
                   </div>
                 )}
@@ -716,7 +718,7 @@ function Contact() {
                 <button
                   type="submit"
                   disabled={isSending}
-                  className="group flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-500 px-6 py-3.5 text-sm font-bold text-slate-950 transition-all duration-300 hover:bg-cyan-400 hover:shadow-lg hover:shadow-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="group flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-500 px-5 py-3 text-xs font-bold text-slate-950 transition-all duration-300 hover:bg-cyan-400 hover:shadow-lg hover:shadow-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
                 >
                   {isSending ? "Sending..." : "Send Message"}
 
@@ -731,93 +733,91 @@ function Contact() {
           </div>
         </div>
 
-        {/* Bottom Email */}
         {/* Bottom Email CTA */}
-<div className="mt-10 overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60 shadow-xl backdrop-blur-sm">
-  <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
-    
-    {/* Left */}
-    <div className="flex items-start gap-4">
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-cyan-500/20 bg-cyan-500/10 text-cyan-400">
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          className="h-6 w-6"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M3 6.75A1.75 1.75 0 0 1 4.75 5h14.5A1.75 1.75 0 0 1 21 6.75v10.5A1.75 1.75 0 0 1 19.25 19H4.75A1.75 1.75 0 0 1 3 17.25V6.75Z"
-          />
-
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="m4 7 8 6 8-6"
-          />
-        </svg>
-      </div>
-
-      <div>
-        <p className="text-sm font-semibold text-white">
-          Prefer direct email?
-        </p>
-
-        <p className="mt-1 break-all text-sm text-slate-400">
-          divyanshusingh2006r@gmail.com
-        </p>
-      </div>
-    </div>
-
-    {/* Right */}
-    <a
-      href="mailto:divyanshusingh2006r@gmail.com?subject=Portfolio%20Inquiry"
-      className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-5 py-3 text-sm font-semibold text-cyan-400 transition-all duration-300 hover:border-cyan-400/60 hover:bg-cyan-500/15 hover:text-cyan-300 hover:shadow-lg hover:shadow-cyan-500/10"
-      aria-label="Compose an email to Divyanshu Singh"
-    >
-      <span>Compose Email</span>
-
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M5 12h13"
-        />
-
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="m13 6 6 6-6 6"
-        />
-      </svg>
-    </a>
-  </div>
-</div>
-      </div>
-
-      {/* Resume Password Modal */}
-      {isResumeModalOpen && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-2xl sm:p-8">
-            <div className="mb-6">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">
+        <div className="mt-7 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 shadow-xl backdrop-blur-sm">
+          <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+            {/* Left */}
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-cyan-500/20 bg-cyan-500/10 text-cyan-400">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="1.8"
-                  className="h-6 w-6"
+                  className="h-5 w-5"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M3 6.75A1.75 1.75 0 0 1 4.75 5h14.5A1.75 1.75 0 0 1 21 6.75v10.5A1.75 1.75 0 0 1 19.25 19H4.75A1.75 1.75 0 0 1 3 17.25V6.75Z"
+                  />
+
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m4 7 8 6 8-6"
+                  />
+                </svg>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-white sm:text-sm">
+                  Prefer direct email?
+                </p>
+
+                <p className="mt-0.5 break-all text-xs text-slate-400 sm:text-sm">
+                  divyanshusingh2006r@gmail.com
+                </p>
+              </div>
+            </div>
+
+            {/* Right */}
+            <a
+              href="mailto:divyanshusingh2006r@gmail.com?subject=Portfolio%20Inquiry"
+              className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-xs font-semibold text-cyan-400 transition-all duration-300 hover:border-cyan-400/60 hover:bg-cyan-500/15 hover:text-cyan-300 hover:shadow-lg hover:shadow-cyan-500/10 sm:text-sm"
+              aria-label="Compose an email to Divyanshu Singh"
+            >
+              <span>Compose Email</span>
+
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M5 12h13"
+                />
+
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m13 6 6 6-6 6"
+                />
+              </svg>
+            </a>
+          </div>
+        </div>
+      </div>
+
+      {/* Resume Password Modal */}
+      {isResumeModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl sm:p-6">
+            <div className="mb-5">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  className="h-5 w-5"
                 >
                   <rect
                     x="5"
@@ -835,20 +835,20 @@ function Contact() {
                 </svg>
               </div>
 
-              <h3 className="text-2xl font-bold text-white">
+              <h3 className="text-xl font-bold text-white">
                 Protected Resume
               </h3>
 
-              <p className="mt-2 text-sm leading-6 text-slate-400">
+              <p className="mt-1.5 text-xs leading-5 text-slate-400 sm:text-sm">
                 Enter the password to download the resume.
               </p>
             </div>
 
-            <form onSubmit={handleResumeSubmit} className="space-y-4">
+            <form onSubmit={handleResumeSubmit} className="space-y-3.5">
               <div>
                 <label
                   htmlFor="resume-password"
-                  className="mb-2 block text-sm font-medium text-slate-300"
+                  className="mb-1.5 block text-xs font-medium text-slate-300"
                 >
                   PDF Password
                 </label>
@@ -863,17 +863,17 @@ function Contact() {
                   }}
                   placeholder="Enter password"
                   autoFocus
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3.5 py-3 text-xs text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10 sm:text-sm"
                 />
               </div>
 
               {resumeError && (
-                <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+                <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-400">
                   {resumeError}
                 </div>
               )}
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => {
@@ -884,7 +884,7 @@ function Contact() {
                     }
                   }}
                   disabled={isResumeDownloading}
-                  className="rounded-xl border border-slate-700 bg-slate-950/70 px-5 py-3 text-sm font-medium text-slate-300 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg border border-slate-700 bg-slate-950/70 px-4 py-2.5 text-xs font-medium text-slate-300 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50 sm:text-sm"
                 >
                   Cancel
                 </button>
@@ -892,7 +892,7 @@ function Contact() {
                 <button
                   type="submit"
                   disabled={isResumeDownloading}
-                  className="rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-lg bg-cyan-500 px-4 py-2.5 text-xs font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
                 >
                   {isResumeDownloading
                     ? "Downloading..."

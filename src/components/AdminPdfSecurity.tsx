@@ -133,8 +133,24 @@ function formatDate(value: string | null) {
   })
 }
 
+type AdminRequest = {
+  _id: string
+  name: string
+  email: string
+  status: "pending" | "approved" | "rejected" | "disabled"
+  createdAt: string
+}
+
+type AdminUser = AdminRequest & {
+  role: string
+  updatedAt: string
+}
+
 function AdminPdfSecurity() {
   const [password, setPassword] = useState("")
+  const [adminEmail, setAdminEmail] = useState("")
+  const [adminRole, setAdminRole] = useState<"superadmin" | "admin" | "">("")
+  const [showLoginPassword, setShowLoginPassword] = useState(false)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [masterProtected, setMasterProtected] = useState(true)
   const [files, setFiles] = useState<PdfSetting[]>([])
@@ -167,6 +183,37 @@ function AdminPdfSecurity() {
   const [allPdfPasswordConfirm, setAllPdfPasswordConfirm] =
     useState("")
 
+  const [showAdminPasswordReset, setShowAdminPasswordReset] =
+    useState(false)
+  const [resetStep, setResetStep] =
+    useState<"email" | "otp" | "password">("email")
+  const [resetEmail, setResetEmail] = useState("")
+  const [resetOtp, setResetOtp] = useState("")
+  const [resetToken, setResetToken] = useState("")
+  const [newAdminPassword, setNewAdminPassword] = useState("")
+  const [confirmAdminPassword, setConfirmAdminPassword] = useState("")
+  const [showNewAdminPassword, setShowNewAdminPassword] = useState(false)
+  const [showConfirmAdminPassword, setShowConfirmAdminPassword] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetError, setResetError] = useState("")
+  const [resetSuccess, setResetSuccess] = useState("")
+  const [otpCooldown, setOtpCooldown] = useState(0)
+
+  const [showAdminRegistration, setShowAdminRegistration] = useState(false)
+  const [registrationName, setRegistrationName] = useState("")
+  const [registrationEmail, setRegistrationEmail] = useState("")
+  const [registrationPassword, setRegistrationPassword] = useState("")
+  const [registrationConfirmPassword, setRegistrationConfirmPassword] = useState("")
+  const [showRegistrationPassword, setShowRegistrationPassword] = useState(false)
+  const [showRegistrationConfirmPassword, setShowRegistrationConfirmPassword] = useState(false)
+  const [registrationLoading, setRegistrationLoading] = useState(false)
+  const [registrationError, setRegistrationError] = useState("")
+  const [registrationSuccess, setRegistrationSuccess] = useState("")
+
+  const [pendingAdminRequests, setPendingAdminRequests] = useState<AdminRequest[]>([])
+  const [registeredAdmins, setRegisteredAdmins] = useState<AdminUser[]>([])
+  const [adminManagementLoading, setAdminManagementLoading] = useState(false)
+
   const selectedOption = useMemo(
     () => PDF_OPTIONS.find((option) => option.slot === selectedSlot),
     [selectedSlot]
@@ -184,13 +231,203 @@ function AdminPdfSecurity() {
     const savedPassword = sessionStorage.getItem(
       "admin_panel_password"
     )
+    const savedEmail = sessionStorage.getItem("admin_panel_email") || ""
+    const savedRole = (sessionStorage.getItem("admin_panel_role") ||
+      (savedEmail ? "admin" : "superadmin")) as "superadmin" | "admin"
 
     if (savedPassword) {
       setPassword(savedPassword)
+      setAdminEmail(savedEmail)
+      setAdminRole(savedRole)
       setIsLoggedIn(true)
-      loadSecuritySettings(savedPassword)
+      void loadSecuritySettings(savedPassword, savedEmail)
+      if (savedRole === "superadmin") {
+        void loadAdminManagement(savedPassword, savedEmail)
+      }
     }
   }, [])
+
+  useEffect(() => {
+    if (otpCooldown <= 0) return
+
+    const timer = window.setInterval(() => {
+      setOtpCooldown((current) => Math.max(0, current - 1))
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [otpCooldown])
+
+  const resetAdminPasswordFlow = () => {
+    setShowAdminPasswordReset(true)
+    setResetStep("email")
+    setResetEmail("")
+    setResetOtp("")
+    setResetToken("")
+    setNewAdminPassword("")
+    setConfirmAdminPassword("")
+    setResetError("")
+    setResetSuccess("")
+    setOtpCooldown(0)
+  }
+
+  const closeAdminPasswordReset = () => {
+    if (resetLoading) return
+    setShowAdminPasswordReset(false)
+    setResetError("")
+    setResetSuccess("")
+  }
+
+  const requestAdminOtp = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault()
+    setResetError("")
+    setResetSuccess("")
+
+    const email = resetEmail.trim().toLowerCase()
+    if (!email || !email.includes("@")) {
+      setResetError("Please enter your registered admin email address.")
+      return
+    }
+
+    try {
+      setResetLoading(true)
+      const response = await fetch(`${API_BASE}/api/admin/password-reset/request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || "Unable to send OTP.")
+      }
+
+      setResetStep("otp")
+      setOtpCooldown(60)
+      setResetSuccess(data.message || "OTP sent to your email address.")
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : "Unable to send OTP.")
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  const verifyAdminOtp = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setResetError("")
+    setResetSuccess("")
+
+    const otp = resetOtp.trim()
+    if (!/^\d{6}$/.test(otp)) {
+      setResetError("Enter the 6-digit OTP received in your email.")
+      return
+    }
+
+    try {
+      setResetLoading(true)
+      const response = await fetch(`${API_BASE}/api/admin/password-reset/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail.trim().toLowerCase(), otp }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || "Invalid OTP.")
+      }
+
+      setResetToken(data.resetToken)
+      setResetStep("password")
+      setResetSuccess("OTP verified. Create your new admin password.")
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : "Unable to verify OTP.")
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  const submitAdminPasswordReset = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setResetError("")
+    setResetSuccess("")
+
+    const form = event.currentTarget
+    const newPasswordInput = form.elements.namedItem("newAdminPassword") as HTMLInputElement | null
+    const confirmPasswordInput = form.elements.namedItem("confirmAdminPassword") as HTMLInputElement | null
+
+    // Read the actual DOM input values at submit time. This avoids browser
+    // autofill/FormData inconsistencies with controlled password inputs.
+    const formNewAdminPassword = newPasswordInput?.value ?? ""
+    const formConfirmAdminPassword = confirmPasswordInput?.value ?? ""
+
+    if (!formNewAdminPassword) {
+      setResetError("Please enter a new admin password.")
+      return
+    }
+
+    if (!formConfirmAdminPassword) {
+      setResetError("Please confirm your new admin password.")
+      return
+    }
+
+    if (formNewAdminPassword.length < 8) {
+      setResetError("New admin password must be at least 8 characters.")
+      return
+    }
+
+    if (formNewAdminPassword !== formConfirmAdminPassword) {
+      setResetError(
+        `Passwords do not match. New password: ${formNewAdminPassword.length} characters, confirmation: ${formConfirmAdminPassword.length} characters.`
+      )
+      return
+    }
+
+    if (!resetEmail.trim()) {
+      setResetError("Admin email is required.")
+      return
+    }
+
+    if (!resetToken) {
+      setResetError("Your OTP verification session has expired. Please request a new OTP.")
+      return
+    }
+
+    try {
+      setResetLoading(true)
+      const response = await fetch(`${API_BASE}/api/admin/password-reset/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: resetEmail.trim().toLowerCase(),
+          resetToken,
+          newPassword: formNewAdminPassword,
+          confirmPassword: formConfirmAdminPassword,
+        }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.message || "Unable to change admin password.")
+      }
+
+      setResetSuccess(data.message || "Admin password changed successfully.")
+      setPassword("")
+      sessionStorage.removeItem("admin_panel_password")
+      setTimeout(() => {
+        setShowAdminPasswordReset(false)
+        setResetStep("email")
+        setResetEmail("")
+        setResetOtp("")
+        setResetToken("")
+        setNewAdminPassword("")
+        setConfirmAdminPassword("")
+        setResetSuccess("")
+      }, 1200)
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : "Unable to change admin password.")
+    } finally {
+      setResetLoading(false)
+    }
+  }
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -244,7 +481,147 @@ function AdminPdfSecurity() {
   }, [selectedExistingFile])
 
 
-  const loadSecuritySettings = async (adminPassword: string) => {
+  const getAdminHeaders = (
+    passwordValue = password,
+    emailValue = adminEmail,
+    includeJson = false
+  ) => ({
+    ...(includeJson ? { "Content-Type": "application/json" } : {}),
+    "X-Admin-Password": passwordValue,
+    ...(emailValue ? { "X-Admin-Email": emailValue } : {}),
+  })
+
+  const loadAdminManagement = async (
+    adminPassword = password,
+    emailValue = adminEmail
+  ) => {
+    try {
+      setAdminManagementLoading(true)
+      const headers = getAdminHeaders(adminPassword, emailValue)
+
+      const [requestsResponse, usersResponse] = await Promise.all([
+        fetch(`${API_BASE}/api/admin/requests`, { headers }),
+        fetch(`${API_BASE}/api/admin/users`, { headers }),
+      ])
+
+      const requestsData = await requestsResponse.json()
+      const usersData = await usersResponse.json()
+
+      if (!requestsResponse.ok) {
+        throw new Error(requestsData.message || "Unable to load admin requests.")
+      }
+      if (!usersResponse.ok) {
+        throw new Error(usersData.message || "Unable to load registered admins.")
+      }
+
+      setPendingAdminRequests(requestsData.requests || [])
+      setRegisteredAdmins(usersData.users || [])
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load admin management.")
+    } finally {
+      setAdminManagementLoading(false)
+    }
+  }
+
+  const submitAdminRegistration = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setRegistrationError("")
+    setRegistrationSuccess("")
+
+    const name = registrationName.trim()
+    const email = registrationEmail.trim().toLowerCase()
+
+    if (!name) {
+      setRegistrationError("Please enter your full name.")
+      return
+    }
+    if (!email || !email.includes("@")) {
+      setRegistrationError("Please enter a valid email address.")
+      return
+    }
+    if (registrationPassword.length < 8) {
+      setRegistrationError("Password must be at least 8 characters.")
+      return
+    }
+    if (registrationPassword !== registrationConfirmPassword) {
+      setRegistrationError("Password and confirm password do not match.")
+      return
+    }
+
+    try {
+      setRegistrationLoading(true)
+      const response = await fetch(`${API_BASE}/api/admin/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          email,
+          password: registrationPassword,
+          confirmPassword: registrationConfirmPassword,
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || "Unable to submit registration.")
+      }
+
+      setRegistrationSuccess(data.message || "Registration submitted successfully.")
+      setRegistrationName("")
+      setRegistrationEmail("")
+      setRegistrationPassword("")
+      setRegistrationConfirmPassword("")
+      setTimeout(() => {
+        setShowAdminRegistration(false)
+        setRegistrationSuccess("")
+      }, 1800)
+    } catch (err) {
+      setRegistrationError(err instanceof Error ? err.message : "Unable to submit registration.")
+    } finally {
+      setRegistrationLoading(false)
+    }
+  }
+
+  const updateAdminRequest = async (id: string, action: "approve" | "reject") => {
+    try {
+      setAdminManagementLoading(true)
+      setError("")
+      const response = await fetch(`${API_BASE}/api/admin/requests/${id}/${action}`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || `Unable to ${action} admin request.`)
+      setSuccess(data.message || `Admin request ${action}d successfully.`)
+      await loadAdminManagement()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Unable to ${action} admin request.`)
+    } finally {
+      setAdminManagementLoading(false)
+    }
+  }
+
+  const updateRegisteredAdmin = async (id: string, action: "disable" | "enable" | "delete") => {
+    try {
+      setAdminManagementLoading(true)
+      setError("")
+      const method = action === "delete" ? "DELETE" : "POST"
+      const response = await fetch(`${API_BASE}/api/admin/users/${id}${action === "delete" ? "" : `/${action}`}`, {
+        method,
+        headers: getAdminHeaders(),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || `Unable to ${action} admin.`)
+      setSuccess(data.message || `Admin ${action}d successfully.`)
+      await loadAdminManagement()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Unable to ${action} admin.`)
+    } finally {
+      setAdminManagementLoading(false)
+    }
+  }
+
+  const loadSecuritySettings = async (adminPassword: string, emailValue = adminEmail) => {
     try {
       setIsLoading(true)
       setError("")
@@ -252,9 +629,7 @@ function AdminPdfSecurity() {
       const response = await fetch(
         `${API_BASE}/api/admin/security`,
         {
-          headers: {
-            "X-Admin-Password": adminPassword,
-          },
+          headers: getAdminHeaders(adminPassword, emailValue),
         }
       )
 
@@ -273,6 +648,8 @@ function AdminPdfSecurity() {
       setOverallCgpa(data.overallCgpa ?? null)
     } catch (err) {
       sessionStorage.removeItem("admin_panel_password")
+      sessionStorage.removeItem("admin_panel_email")
+      sessionStorage.removeItem("admin_panel_role")
       setIsLoggedIn(false)
       setPassword("")
       setFiles([])
@@ -292,6 +669,13 @@ function AdminPdfSecurity() {
     setError("")
     setSuccess("")
 
+    const email = adminEmail.trim().toLowerCase()
+
+    if (!email || !email.includes("@")) {
+      setError("Please enter your registered admin email address.")
+      return
+    }
+
     if (!password.trim()) {
       setError("Please enter the admin password.")
       return
@@ -300,32 +684,30 @@ function AdminPdfSecurity() {
     try {
       setIsLoading(true)
 
-      const response = await fetch(
-        `${API_BASE}/api/admin/login`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ password }),
-        }
-      )
+      const response = await fetch(`${API_BASE}/api/admin/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
 
       const data = await response.json()
-
       if (!response.ok) {
-        throw new Error(
-          data.message || "Incorrect admin password."
-        )
+        throw new Error(data.message || "Incorrect admin email or password.")
       }
 
+      const role = data.role === "superadmin" ? "superadmin" : "admin"
       sessionStorage.setItem("admin_panel_password", password)
+      sessionStorage.setItem("admin_panel_email", email)
+      sessionStorage.setItem("admin_panel_role", role)
+      setAdminEmail(email)
+      setAdminRole(role)
       setIsLoggedIn(true)
-      await loadSecuritySettings(password)
+      await loadSecuritySettings(password, email)
+      if (role === "superadmin") {
+        await loadAdminManagement(password, email)
+      }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Login failed."
-      )
+      setError(err instanceof Error ? err.message : "Login failed.")
     } finally {
       setIsLoading(false)
     }
@@ -333,8 +715,12 @@ function AdminPdfSecurity() {
 
   const handleLogout = () => {
     sessionStorage.removeItem("admin_panel_password")
+    sessionStorage.removeItem("admin_panel_email")
+    sessionStorage.removeItem("admin_panel_role")
     setIsLoggedIn(false)
     setPassword("")
+    setAdminEmail("")
+    setAdminRole("")
     setFiles([])
     setOverallCgpa(null)
     setError("")
@@ -523,6 +909,7 @@ function AdminPdfSecurity() {
           method: "POST",
           headers: {
             "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
           },
           body: formData,
         }
@@ -563,6 +950,7 @@ function AdminPdfSecurity() {
           headers: {
             "Content-Type": "application/json",
             "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
           },
           body: JSON.stringify({ protected: nextValue }),
         }
@@ -611,6 +999,7 @@ function AdminPdfSecurity() {
           headers: {
             "Content-Type": "application/json",
             "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
           },
           body: JSON.stringify({ protected: nextValue }),
         }
@@ -671,6 +1060,7 @@ function AdminPdfSecurity() {
           headers: {
             "Content-Type": "application/json",
             "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
           },
           body: JSON.stringify({ enabled: nextValue }),
         }
@@ -732,6 +1122,7 @@ function AdminPdfSecurity() {
           headers: {
             "Content-Type": "application/json",
             "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
           },
           body: JSON.stringify({ sgpa }),
         }
@@ -789,6 +1180,7 @@ function AdminPdfSecurity() {
           headers: {
             "Content-Type": "application/json",
             "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
           },
           body: JSON.stringify({ percentage }),
         }
@@ -863,6 +1255,7 @@ function AdminPdfSecurity() {
         {
           headers: {
             "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
           },
         }
       )
@@ -912,6 +1305,7 @@ function AdminPdfSecurity() {
         {
           headers: {
             "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
           },
         }
       )
@@ -962,6 +1356,7 @@ function AdminPdfSecurity() {
           method: "DELETE",
           headers: {
             "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
           },
         }
       )
@@ -1009,6 +1404,7 @@ function AdminPdfSecurity() {
           headers: {
             "Content-Type": "application/json",
             "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
           },
           body: JSON.stringify({ password: newPdfPassword }),
         }
@@ -1063,6 +1459,7 @@ function AdminPdfSecurity() {
           headers: {
             "Content-Type": "application/json",
             "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
           },
           body: JSON.stringify({ password: allPdfPassword }),
         }
@@ -1103,14 +1500,35 @@ function AdminPdfSecurity() {
                 Admin Access
               </p>
               <h1 className="mt-3 text-2xl font-bold text-white sm:text-3xl">
-                PDF Security Panel
+                Administrator
               </h1>
               <p className="mt-3 text-sm leading-6 text-slate-400">
-                Manage portfolio PDFs, passwords, visibility and academic results from one place.
+                Access to the Admin Panel is restricted to authorized administrators only. Please enter the correct admin password to proceed.
               </p>
             </div>
 
             <form onSubmit={handleLogin}>
+              <label
+                htmlFor="admin-email"
+                className="mb-2 block text-sm font-medium text-slate-300"
+              >
+                Admin Email
+              </label>
+
+              <input
+                id="admin-email"
+                type="email"
+                value={adminEmail}
+                onChange={(event) => {
+                  setAdminEmail(event.target.value)
+                  setError("")
+                }}
+                placeholder="Enter registered admin email"
+                autoComplete="username"
+                disabled={isLoading}
+                className="mb-4 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400"
+              />
+
               <label
                 htmlFor="admin-password"
                 className="mb-2 block text-sm font-medium text-slate-300"
@@ -1118,19 +1536,30 @@ function AdminPdfSecurity() {
                 Admin Password
               </label>
 
-              <input
-                id="admin-password"
-                type="password"
-                value={password}
-                onChange={(event) => {
-                  setPassword(event.target.value)
-                  setError("")
-                }}
-                placeholder="Enter admin password"
-                autoComplete="current-password"
-                disabled={isLoading}
-                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400"
-              />
+              <div className="relative">
+                <input
+                  id="admin-password"
+                  type={showLoginPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(event) => {
+                    setPassword(event.target.value)
+                    setError("")
+                  }}
+                  placeholder="Enter admin password"
+                  autoComplete="current-password"
+                  disabled={isLoading}
+                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 pr-12 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLoginPassword((current) => !current)}
+                  disabled={isLoading}
+                  aria-label={showLoginPassword ? "Hide admin password" : "Show admin password"}
+                  className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300"
+                >
+                  {showLoginPassword ? "◉" : "◌"}
+                </button>
+              </div>
 
               {error && (
                 <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/5 px-4 py-3 text-sm text-red-300">
@@ -1146,8 +1575,316 @@ function AdminPdfSecurity() {
                 {isLoading ? "Checking..." : "Login to Admin Panel"}
               </button>
             </form>
+
+            <button
+              type="button"
+              onClick={resetAdminPasswordFlow}
+              disabled={isLoading}
+              className="mt-4 w-full rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Forgot / Change Admin Password?
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowAdminRegistration(true)
+                setRegistrationError("")
+                setRegistrationSuccess("")
+              }}
+              disabled={isLoading}
+              className="mt-3 w-full rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-4 py-3 text-sm font-semibold text-cyan-300 transition hover:border-cyan-400/50 hover:bg-cyan-400/10 disabled:opacity-50"
+            >
+              Register for Admin Access
+            </button>
+
+            <p className="mt-3 text-center text-[11px] leading-5 text-slate-600">
+              Password reset requires OTP verification on your registered admin email.
+            </p>
           </div>
         </div>
+
+        {showAdminRegistration && (
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/85 px-4 py-6 backdrop-blur-md"
+            onMouseDown={() => {
+              if (!registrationLoading) setShowAdminRegistration(false)
+            }}
+          >
+            <div
+              className="w-full max-w-md overflow-hidden rounded-3xl border border-cyan-400/20 bg-slate-900 shadow-2xl"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div className="border-b border-slate-800 bg-gradient-to-r from-cyan-400/10 via-blue-500/5 to-transparent px-6 py-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-cyan-400">Admin Registration</p>
+                    <h2 className="mt-2 text-xl font-bold text-white">Request Admin Access</h2>
+                    <p className="mt-1 text-sm text-slate-400">Your account will remain pending until the Super Admin approves it.</p>
+                  </div>
+                  <button type="button" onClick={() => setShowAdminRegistration(false)} disabled={registrationLoading} className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 text-lg text-slate-400 hover:text-white">&times;</button>
+                </div>
+              </div>
+
+              <form onSubmit={submitAdminRegistration} className="space-y-4 px-6 py-6">
+                {registrationError && <div className="rounded-xl border border-red-400/20 bg-red-400/5 px-4 py-3 text-sm text-red-300">{registrationError}</div>}
+                {registrationSuccess && <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-3 text-sm text-emerald-300">{registrationSuccess}</div>}
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-200">Full Name</label>
+                  <input value={registrationName} onChange={(event) => setRegistrationName(event.target.value)} placeholder="Enter your full name" disabled={registrationLoading} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-sm text-white outline-none focus:border-cyan-400" />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-200">Email Address</label>
+                  <input type="email" value={registrationEmail} onChange={(event) => setRegistrationEmail(event.target.value)} placeholder="Enter your email address" autoComplete="email" disabled={registrationLoading} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-sm text-white outline-none focus:border-cyan-400" />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-200">Password</label>
+                  <div className="relative">
+                    <input type={showRegistrationPassword ? "text" : "password"} value={registrationPassword} onChange={(event) => setRegistrationPassword(event.target.value)} placeholder="Minimum 8 characters" autoComplete="new-password" disabled={registrationLoading} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 pr-12 text-sm text-white outline-none focus:border-cyan-400" />
+                    <button type="button" onClick={() => setShowRegistrationPassword((current) => !current)} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300">{showRegistrationPassword ? "◉" : "◌"}</button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-200">Confirm Password</label>
+                  <div className="relative">
+                    <input type={showRegistrationConfirmPassword ? "text" : "password"} value={registrationConfirmPassword} onChange={(event) => setRegistrationConfirmPassword(event.target.value)} placeholder="Re-enter your password" autoComplete="new-password" disabled={registrationLoading} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 pr-12 text-sm text-white outline-none focus:border-cyan-400" />
+                    <button type="button" onClick={() => setShowRegistrationConfirmPassword((current) => !current)} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300">{showRegistrationConfirmPassword ? "◉" : "◌"}</button>
+                  </div>
+                </div>
+
+                <button type="submit" disabled={registrationLoading} className="w-full rounded-xl bg-cyan-400 px-4 py-3.5 text-sm font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50">
+                  {registrationLoading ? "Submitting..." : "Submit Registration"}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showAdminPasswordReset && (
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/85 px-4 py-6 backdrop-blur-md"
+            onMouseDown={() => {
+              if (!resetLoading) closeAdminPasswordReset()
+            }}
+          >
+            <div
+              className="w-full max-w-md overflow-hidden rounded-3xl border border-cyan-400/20 bg-slate-900 shadow-2xl"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div className="border-b border-slate-800 bg-gradient-to-r from-cyan-400/10 via-blue-500/5 to-transparent px-6 py-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-cyan-400">
+                      Account Recovery
+                    </p>
+                    <h2 className="mt-2 text-xl font-bold text-white">
+                      Change Admin Password
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-400">
+                      Verify the 6-digit OTP sent to your registered admin email.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeAdminPasswordReset}
+                    disabled={resetLoading}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-700 text-lg text-slate-400 hover:text-white disabled:opacity-50"
+                    aria-label="Close password recovery"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <div className="mt-5 grid grid-cols-3 gap-2">
+                  {["Email", "OTP", "Password"].map((label, index) => {
+                    const active =
+                      (resetStep === "email" && index === 0) ||
+                      (resetStep === "otp" && index === 1) ||
+                      (resetStep === "password" && index === 2)
+                    return (
+                      <div key={label} className={`rounded-xl px-2 py-2 text-center text-[10px] font-bold uppercase tracking-wider ${active ? "bg-cyan-400/15 text-cyan-300" : "bg-slate-950/60 text-slate-600"}`}>
+                        {index + 1}. {label}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="px-6 py-6">
+                {resetError && (
+                  <div className="mb-4 rounded-xl border border-red-400/20 bg-red-400/5 px-4 py-3 text-sm text-red-300">
+                    {resetError}
+                  </div>
+                )}
+
+                {resetSuccess && (
+                  <div className="mb-4 rounded-xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-3 text-sm text-emerald-300">
+                    {resetSuccess}
+                  </div>
+                )}
+
+                {resetStep === "email" && (
+                  <form onSubmit={requestAdminOtp} className="space-y-4">
+                    <div>
+                      <label htmlFor="reset-email" className="mb-2 block text-sm font-semibold text-slate-200">
+                        Registered Admin Email
+                      </label>
+                      <input
+                        id="reset-email"
+                        type="email"
+                        value={resetEmail}
+                        onChange={(event) => setResetEmail(event.target.value)}
+                        placeholder="Enter registered admin email"
+                        autoFocus
+                        disabled={resetLoading}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-sm text-white outline-none focus:border-cyan-400"
+                      />
+                    </div>
+                    <button type="submit" disabled={resetLoading} className="w-full rounded-xl bg-cyan-400 px-4 py-3.5 text-sm font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50">
+                      {resetLoading ? "Sending OTP..." : "Send OTP"}
+                    </button>
+                  </form>
+                )}
+
+                {resetStep === "otp" && (
+                  <form onSubmit={verifyAdminOtp} className="space-y-4">
+                    <div>
+                      <label htmlFor="reset-otp" className="mb-2 block text-sm font-semibold text-slate-200">
+                        6-Digit OTP
+                      </label>
+                      <input
+                        id="reset-otp"
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={resetOtp}
+                        onChange={(event) => setResetOtp(event.target.value.replace(/\D/g, ""))}
+                        placeholder="Enter OTP"
+                        autoFocus
+                        disabled={resetLoading}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-center text-lg font-bold tracking-[0.45em] text-white outline-none focus:border-cyan-400"
+                      />
+                    </div>
+                    <button type="submit" disabled={resetLoading} className="w-full rounded-xl bg-cyan-400 px-4 py-3.5 text-sm font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50">
+                      {resetLoading ? "Verifying..." : "Verify OTP"}
+                    </button>
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <button type="button" onClick={() => setResetStep("email")} disabled={resetLoading} className="text-slate-400 hover:text-white">
+                        Change email
+                      </button>
+                      <button type="button" onClick={() => void requestAdminOtp()} disabled={resetLoading || otpCooldown > 0} className="font-semibold text-cyan-300 disabled:text-slate-600">
+                        {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : "Resend OTP"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {resetStep === "password" && (
+                  <form onSubmit={submitAdminPasswordReset} className="space-y-4">
+                    <div>
+                      <label htmlFor="new-admin-password" className="mb-2 block text-sm font-semibold text-slate-200">
+                        New Admin Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="new-admin-password"
+                          type={showNewAdminPassword ? "text" : "password"}
+                          name="newAdminPassword"
+                          value={newAdminPassword}
+                          onChange={(event) => {
+                            setNewAdminPassword(event.target.value)
+                            setResetError("")
+                          }}
+                          placeholder="Minimum 8 characters"
+                          autoFocus
+                          disabled={resetLoading}
+                          autoComplete="new-password"
+                          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 pr-12 text-sm text-white outline-none focus:border-cyan-400"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewAdminPassword((current) => !current)}
+                          disabled={resetLoading}
+                          aria-label={showNewAdminPassword ? "Hide new admin password" : "Show new admin password"}
+                          className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 transition hover:text-cyan-300 disabled:opacity-50"
+                        >
+                          {showNewAdminPassword ? (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                              <path d="M3 3l18 18" />
+                              <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                              <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5 0 9 4 10 8a10.8 10.8 0 0 1-3.1 5.1" />
+                              <path d="M6.6 6.6C4.8 7.8 3.5 9.5 2 12c1 4 5 8 10 8 1.4 0 2.7-.3 3.9-.8" />
+                            </svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="confirm-admin-password" className="mb-2 block text-sm font-semibold text-slate-200">
+                        Confirm New Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="confirm-admin-password"
+                          type={showConfirmAdminPassword ? "text" : "password"}
+                          name="confirmAdminPassword"
+                          value={confirmAdminPassword}
+                          onChange={(event) => {
+                            setConfirmAdminPassword(event.target.value)
+                            setResetError("")
+                          }}
+                          placeholder="Re-enter new password"
+                          disabled={resetLoading}
+                          autoComplete="new-password"
+                          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 pr-12 text-sm text-white outline-none focus:border-cyan-400"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmAdminPassword((current) => !current)}
+                          disabled={resetLoading}
+                          aria-label={showConfirmAdminPassword ? "Hide confirm password" : "Show confirm password"}
+                          className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 transition hover:text-cyan-300 disabled:opacity-50"
+                        >
+                          {showConfirmAdminPassword ? (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                              <path d="M3 3l18 18" />
+                              <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                              <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5 0 9 4 10 8a10.8 10.8 0 0 1-3.1 5.1" />
+                              <path d="M6.6 6.6C4.8 7.8 3.5 9.5 2 12c1 4 5 8 10 8 1.4 0 2.7-.3 3.9-.8" />
+                            </svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={resetLoading}
+                      className="w-full rounded-xl bg-cyan-400 px-4 py-3.5 text-sm font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50"
+                    >
+                      {resetLoading ? "Changing Password..." : "Change Admin Password"}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     )
   }
@@ -1166,6 +1903,7 @@ function AdminPdfSecurity() {
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
               Upload or replace a PDF, control portfolio visibility, manage passwords and maintain semester SGPA data without editing source code.
             </p>
+            <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-600">Signed in as {adminRole === "superadmin" ? "Super Admin" : "Administrator"} · {adminEmail}</p>
           </div>
 
           <button
@@ -1176,6 +1914,78 @@ function AdminPdfSecurity() {
             Logout
           </button>
         </div>
+
+        {adminRole === "superadmin" && (
+          <section className="mb-6 rounded-3xl border border-cyan-400/20 bg-slate-900/80 p-5 shadow-xl sm:p-7">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">Super Admin</p>
+                <h2 className="mt-2 text-xl font-bold text-white sm:text-2xl">Admin Access Management</h2>
+                <p className="mt-2 text-sm leading-6 text-slate-400">Review registration requests and manage approved administrator accounts.</p>
+              </div>
+              <button type="button" onClick={() => void loadAdminManagement()} disabled={adminManagementLoading} className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 disabled:opacity-50">{adminManagementLoading ? "Refreshing..." : "Refresh"}</button>
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">Pending Requests</p>
+                <p className="mt-2 text-3xl font-bold text-white">{pendingAdminRequests.length}</p>
+              </div>
+              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-300">Registered Admins</p>
+                <p className="mt-2 text-3xl font-bold text-white">{registeredAdmins.length}</p>
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <h3 className="text-base font-bold text-white">Pending Registration Requests</h3>
+              <div className="mt-3 space-y-3">
+                {pendingAdminRequests.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-5 text-sm text-slate-500">No pending registration requests.</div>
+                ) : pendingAdminRequests.map((request) => (
+                  <div key={request._id} className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="font-semibold text-white">{request.name}</p>
+                      <p className="mt-1 text-sm text-slate-400">{request.email}</p>
+                      <p className="mt-1 text-xs text-slate-600">Requested {formatDate(request.createdAt)}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button type="button" onClick={() => void updateAdminRequest(request._id, "approve")} disabled={adminManagementLoading} className="rounded-xl bg-emerald-400 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-300 disabled:opacity-50">Approve</button>
+                      <button type="button" onClick={() => void updateAdminRequest(request._id, "reject")} disabled={adminManagementLoading} className="rounded-xl border border-red-400/30 px-4 py-2 text-xs font-bold text-red-300 hover:bg-red-400/10 disabled:opacity-50">Reject</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-8">
+              <h3 className="text-base font-bold text-white">Registered Administrators</h3>
+              <div className="mt-3 space-y-3">
+                {registeredAdmins.length === 0 ? (
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-5 text-sm text-slate-500">No additional administrators have been approved yet.</div>
+                ) : registeredAdmins.map((user) => (
+                  <div key={user._id} className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-semibold text-white">{user.name}</p>
+                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${user.status === "approved" ? "border-emerald-400/20 bg-emerald-400/5 text-emerald-300" : "border-slate-700 bg-slate-900 text-slate-400"}`}>{user.status}</span>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-400">{user.email}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {user.status === "disabled" ? (
+                        <button type="button" onClick={() => void updateRegisteredAdmin(user._id, "enable")} disabled={adminManagementLoading} className="rounded-xl border border-emerald-400/30 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-400/10 disabled:opacity-50">Enable</button>
+                      ) : (
+                        <button type="button" onClick={() => void updateRegisteredAdmin(user._id, "disable")} disabled={adminManagementLoading} className="rounded-xl border border-amber-400/30 px-3.5 py-2 text-xs font-bold text-amber-300 hover:bg-amber-400/10 disabled:opacity-50">Disable</button>
+                      )}
+                      <button type="button" onClick={() => { if (window.confirm(`Delete ${user.email}?`)) void updateRegisteredAdmin(user._id, "delete") }} disabled={adminManagementLoading} className="rounded-xl border border-red-400/30 px-3.5 py-2 text-xs font-bold text-red-300 hover:bg-red-400/10 disabled:opacity-50">Delete</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
 
         {error && (
           <div className="mb-5 rounded-2xl border border-red-400/20 bg-red-400/5 px-5 py-4 text-sm text-red-300">
