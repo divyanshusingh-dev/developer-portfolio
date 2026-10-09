@@ -1904,7 +1904,7 @@ function AdminPdfSecurity() {
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
               Upload or replace a PDF, control portfolio visibility, manage passwords and maintain semester SGPA data without editing source code.
             </p>
-            <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-600">Signed in as {adminRole === "superadmin" ? "Super Admin" : "Administrator"} Â· {adminEmail}</p>
+            <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-600">Signed in as {adminRole === "superadmin" ? "Super Admin" : "Administrator"} {adminEmail}</p>
           </div>
 
           <button
