@@ -10,9 +10,17 @@ type Semester = {
   available: boolean
 }
 
+type ClassMarksheet = {
+  slot: "classX" | "classXII" | string
+  percentage: number | null
+}
+
 type EducationResponse = {
   semesters: Semester[]
   overallCgpa: number | null
+  classMarksheets?: ClassMarksheet[]
+  class10Percentage?: number | null
+  class12Percentage?: number | null
   message?: string
 }
 
@@ -89,6 +97,8 @@ function Education() {
     fallbackCgpa
   )
   const [isLoading, setIsLoading] = useState(true)
+  const [class10Percentage, setClass10Percentage] = useState<number | null>(70.4)
+  const [class12Percentage, setClass12Percentage] = useState<number | null>(60.4)
 
   const [downloadFile, setDownloadFile] = useState<string | null>(null)
   const [downloadName, setDownloadName] = useState("")
@@ -112,6 +122,22 @@ function Education() {
         }
 
         const data = (await response.json()) as EducationResponse
+
+        // Prefer explicit API fields; support classMarksheets for compatibility
+        // with deployments that return the per-slot percentage array.
+        const class10FromList = data.classMarksheets?.find(
+          (item) => item.slot === "classX"
+        )?.percentage
+        const class12FromList = data.classMarksheets?.find(
+          (item) => item.slot === "classXII"
+        )?.percentage
+
+        setClass10Percentage(
+          data.class10Percentage ?? class10FromList ?? 70.4
+        )
+        setClass12Percentage(
+          data.class12Percentage ?? class12FromList ?? 60.4
+        )
 
         const serverMap = new Map(
           (data.semesters || []).map((semester) => [
@@ -154,6 +180,8 @@ function Education() {
       } catch {
         setSemesters(fallbackSemesters)
         setOverallCgpa(fallbackCgpa)
+        setClass10Percentage(70.4)
+        setClass12Percentage(60.4)
         setError("")
       } finally {
         setIsLoading(false)
@@ -500,7 +528,9 @@ function Education() {
                 </span>
 
                 <span className="text-sm font-semibold text-cyan-400">
-                  Percentage: 60.40%
+                  Percentage: {class12Percentage !== null
+                    ? `${class12Percentage.toFixed(2)}%`
+                    : "—"}
                 </span>
 
                 <button
@@ -561,7 +591,9 @@ function Education() {
                 </span>
 
                 <span className="text-sm font-semibold text-cyan-400">
-                  Percentage: 70.40%
+                  Percentage: {class10Percentage !== null
+                    ? `${class10Percentage.toFixed(2)}%`
+                    : "—"}
                 </span>
 
                 <button

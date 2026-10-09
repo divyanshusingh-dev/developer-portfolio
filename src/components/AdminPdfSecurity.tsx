@@ -1155,7 +1155,8 @@ function AdminPdfSecurity() {
   const savePercentage = async (file: PdfSetting, input: string) => {
     if (!SCHOOL_MARKSHEET_SLOTS.has(file.slot)) return
 
-    const percentage = Number(input)
+    const trimmedInput = input.trim()
+    const percentage = trimmedInput === "" ? Number.NaN : Number(trimmedInput)
 
     if (
       !Number.isFinite(percentage) ||
@@ -1557,7 +1558,7 @@ function AdminPdfSecurity() {
                   aria-label={showLoginPassword ? "Hide admin password" : "Show admin password"}
                   className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300"
                 >
-                  {showLoginPassword ? "◉" : "◌"}
+                  {showLoginPassword ? "â—‰" : "â—Œ"}
                 </button>
               </div>
 
@@ -1644,7 +1645,7 @@ function AdminPdfSecurity() {
                   <label className="mb-2 block text-sm font-semibold text-slate-200">Password</label>
                   <div className="relative">
                     <input type={showRegistrationPassword ? "text" : "password"} value={registrationPassword} onChange={(event) => setRegistrationPassword(event.target.value)} placeholder="Minimum 8 characters" autoComplete="new-password" disabled={registrationLoading} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 pr-12 text-sm text-white outline-none focus:border-cyan-400" />
-                    <button type="button" onClick={() => setShowRegistrationPassword((current) => !current)} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300">{showRegistrationPassword ? "◉" : "◌"}</button>
+                    <button type="button" onClick={() => setShowRegistrationPassword((current) => !current)} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300">{showRegistrationPassword ? "â—‰" : "â—Œ"}</button>
                   </div>
                 </div>
 
@@ -1652,7 +1653,7 @@ function AdminPdfSecurity() {
                   <label className="mb-2 block text-sm font-semibold text-slate-200">Confirm Password</label>
                   <div className="relative">
                     <input type={showRegistrationConfirmPassword ? "text" : "password"} value={registrationConfirmPassword} onChange={(event) => setRegistrationConfirmPassword(event.target.value)} placeholder="Re-enter your password" autoComplete="new-password" disabled={registrationLoading} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 pr-12 text-sm text-white outline-none focus:border-cyan-400" />
-                    <button type="button" onClick={() => setShowRegistrationConfirmPassword((current) => !current)} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300">{showRegistrationConfirmPassword ? "◉" : "◌"}</button>
+                    <button type="button" onClick={() => setShowRegistrationConfirmPassword((current) => !current)} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300">{showRegistrationConfirmPassword ? "â—‰" : "â—Œ"}</button>
                   </div>
                 </div>
 
@@ -1903,7 +1904,7 @@ function AdminPdfSecurity() {
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
               Upload or replace a PDF, control portfolio visibility, manage passwords and maintain semester SGPA data without editing source code.
             </p>
-            <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-600">Signed in as {adminRole === "superadmin" ? "Super Admin" : "Administrator"} · {adminEmail}</p>
+            <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-600">Signed in as {adminRole === "superadmin" ? "Super Admin" : "Administrator"} Â· {adminEmail}</p>
           </div>
 
           <button
@@ -2759,13 +2760,12 @@ function AdminPdfSecurity() {
 
   <input
     id="academic-edit-value"
-    type="text"
+    type="number"
+    min="0"
+    max={academicEdit.type === "sgpa" ? 10 : 100}
+    step="0.01"
     value={academicEditValue}
-    onChange={(event) =>
-      setAcademicEditValue(
-        event.target.value.replace(/[^\d.]/g, "")
-      )
-    }
+    onChange={(event) => setAcademicEditValue(event.target.value)}
     inputMode="decimal"
     autoFocus
     placeholder={

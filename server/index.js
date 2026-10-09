@@ -3418,15 +3418,25 @@ app.get(
           }
         );
 
+      // The Education frontend expects these two top-level percentage fields.
+      // Derive them from the same settings used by the admin panel so saved
+      // percentages are displayed publicly instead of always falling back.
+      const class10Percentage =
+        classMarksheets.find(
+          (item) => item.slot === "classX"
+        )?.percentage ?? DEFAULT_PERCENTAGE.classX;
+
+      const class12Percentage =
+        classMarksheets.find(
+          (item) => item.slot === "classXII"
+        )?.percentage ?? DEFAULT_PERCENTAGE.classXII;
+
       return res.json({
         semesters,
-
         classMarksheets,
-
-        overallCgpa:
-          calculateCgpa(
-            settings
-          ),
+        class10Percentage,
+        class12Percentage,
+        overallCgpa: calculateCgpa(settings),
       });
     } catch (error) {
       console.error(
