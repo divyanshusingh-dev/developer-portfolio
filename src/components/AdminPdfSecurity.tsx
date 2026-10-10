@@ -1558,7 +1558,19 @@ function AdminPdfSecurity() {
                   aria-label={showLoginPassword ? "Hide admin password" : "Show admin password"}
                   className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300"
                 >
-                  {showLoginPassword ? "â—‰" : "â—Œ"}
+                  {showLoginPassword ? (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                      <path d="M3 3l18 18" />
+                      <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                      <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5 0 9 4 10 8a10.8 10.8 0 0 1-3.1 5.1" />
+                      <path d="M6.6 6.6C4.8 7.8 3.5 9.5 2 12c1 4 5 8 10 8 1.4 0 2.7-.3 3.9-.8" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                  )}
                 </button>
               </div>
 
@@ -1645,7 +1657,17 @@ function AdminPdfSecurity() {
                   <label className="mb-2 block text-sm font-semibold text-slate-200">Password</label>
                   <div className="relative">
                     <input type={showRegistrationPassword ? "text" : "password"} value={registrationPassword} onChange={(event) => setRegistrationPassword(event.target.value)} placeholder="Minimum 8 characters" autoComplete="new-password" disabled={registrationLoading} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 pr-12 text-sm text-white outline-none focus:border-cyan-400" />
-                    <button type="button" onClick={() => setShowRegistrationPassword((current) => !current)} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300">{showRegistrationPassword ? "â—‰" : "â—Œ"}</button>
+                    <button type="button" onClick={() => setShowRegistrationPassword((current) => !current)} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300">{showRegistrationPassword ? (
+                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                         <path d="M3 3l18 18" /><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                         <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5 0 9 4 10 8a10.8 10.8 0 0 1-3.1 5.1" />
+                         <path d="M6.6 6.6C4.8 7.8 3.5 9.5 2 12c1 4 5 8 10 8 1.4 0 2.7-.3 3.9-.8" />
+                       </svg>
+                     ) : (
+                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                         <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
+                       </svg>
+                     )}</button>
                   </div>
                 </div>
 
@@ -1653,7 +1675,17 @@ function AdminPdfSecurity() {
                   <label className="mb-2 block text-sm font-semibold text-slate-200">Confirm Password</label>
                   <div className="relative">
                     <input type={showRegistrationConfirmPassword ? "text" : "password"} value={registrationConfirmPassword} onChange={(event) => setRegistrationConfirmPassword(event.target.value)} placeholder="Re-enter your password" autoComplete="new-password" disabled={registrationLoading} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 pr-12 text-sm text-white outline-none focus:border-cyan-400" />
-                    <button type="button" onClick={() => setShowRegistrationConfirmPassword((current) => !current)} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300">{showRegistrationConfirmPassword ? "â—‰" : "â—Œ"}</button>
+                    <button type="button" onClick={() => setShowRegistrationConfirmPassword((current) => !current)} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300">{showRegistrationConfirmPassword ? (
+                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                         <path d="M3 3l18 18" /><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                         <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5 0 9 4 10 8a10.8 10.8 0 0 1-3.1 5.1" />
+                         <path d="M6.6 6.6C4.8 7.8 3.5 9.5 2 12c1 4 5 8 10 8 1.4 0 2.7-.3 3.9-.8" />
+                       </svg>
+                     ) : (
+                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                         <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
+                       </svg>
+                     )}</button>
                   </div>
                 </div>
 
@@ -1904,7 +1936,7 @@ function AdminPdfSecurity() {
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
               Upload or replace a PDF, control portfolio visibility, manage passwords and maintain semester SGPA data without editing source code.
             </p>
-            <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-600">Signed in as {adminRole === "superadmin" ? "Super Admin" : "Administrator"} {adminEmail}</p>
+            <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-600">Signed in as {adminRole === "superadmin" ? "Super Admin" : "Administrator"} Â· {adminEmail}</p>
           </div>
 
           <button

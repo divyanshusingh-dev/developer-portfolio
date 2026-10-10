@@ -773,34 +773,28 @@ function Contact() {
             </div>
 
             {/* Right */}
-            <a
-              href="mailto:divyanshusingh2006r@gmail.com?subject=Portfolio%20Inquiry"
-              className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-xs font-semibold text-cyan-400 transition-all duration-300 hover:border-cyan-400/60 hover:bg-cyan-500/15 hover:text-cyan-300 hover:shadow-lg hover:shadow-cyan-500/10 sm:text-sm"
-              aria-label="Compose an email to Divyanshu Singh"
-            >
-              <span>Compose Email</span>
+          
+<a
+  href="https://mail.google.com/mail/?view=cm&fs=1&to=divyanshusingh2006r@gmail.com&su=Portfolio%20Inquiry"
+  target="_blank"
+  rel="noopener noreferrer"
+  className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-xs font-semibold text-cyan-400 transition-all duration-300 hover:border-cyan-400/60 hover:bg-cyan-500/15 hover:text-cyan-300 hover:shadow-lg hover:shadow-cyan-500/10 sm:text-sm"
+  aria-label="Compose an email to Divyanshu Singh"
+>
+  <span>Compose Email</span>
 
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M5 12h13"
-                />
-
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="m13 6 6 6-6 6"
-                />
-              </svg>
-            </a>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1"
+  >
+    <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h13" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="m13 6 6 6-6 6" />
+  </svg>
+</a>
           </div>
         </div>
       </div>

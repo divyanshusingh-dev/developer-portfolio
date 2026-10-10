@@ -4,6 +4,8 @@ const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
 const crypto = require("crypto");
+const { promisify } = require("util");
+const scryptAsync = promisify(crypto.scrypt);
 const multer = require("multer");
 const { Resend } = require("resend");
 
@@ -475,25 +477,21 @@ function hashPassword(password) {
   };
 }
 
-function verifyHashedPassword(password, hash, salt) {
+async function verifyHashedPassword(password, hash, salt) {
   if (!hash || !salt) {
     return false;
   }
 
   try {
-    const derived = crypto.scryptSync(
-      password,
-      salt,
-      64
-    );
-
+    const derived = await scryptAsync(password, salt, 64);
     const stored = Buffer.from(hash, "hex");
 
     return (
       stored.length === derived.length &&
       crypto.timingSafeEqual(stored, derived)
     );
-  } catch {
+  } catch (error) {
+    console.error("Password verification failed:", error.message);
     return false;
   }
 }
@@ -569,7 +567,7 @@ async function getAdminCredential() {
 async function verifyAdminPassword(password) {
   const credential = await getAdminCredential();
 
-  return verifyHashedPassword(
+  return await verifyHashedPassword(
     password,
     credential.passwordHash,
     credential.passwordSalt
@@ -581,7 +579,7 @@ async function authenticateAdmin(email, password) {
   const credential = await getAdminCredential();
 
   if (normalizedEmail && normalizedEmail === normalizeEmail(credential.email)) {
-    const valid = verifyHashedPassword(
+    const valid = await verifyHashedPassword(
       password,
       credential.passwordHash,
       credential.passwordSalt
@@ -593,7 +591,7 @@ async function authenticateAdmin(email, password) {
   }
 
   if (!normalizedEmail) {
-    const valid = verifyHashedPassword(
+    const valid = await verifyHashedPassword(
       password,
       credential.passwordHash,
       credential.passwordSalt
@@ -612,7 +610,7 @@ async function authenticateAdmin(email, password) {
   if (admin.status === "rejected") return { valid: false, reason: "rejected" };
   if (admin.status === "disabled") return { valid: false, reason: "disabled" };
 
-  const valid = verifyHashedPassword(
+  const valid = await verifyHashedPassword(
     password,
     admin.passwordHash,
     admin.passwordSalt
@@ -828,7 +826,7 @@ async function verifyPdfPassword(
   fileName
 ) {
   if (
-    verifyHashedPassword(
+    await verifyHashedPassword(
       password,
       file.passwordHash,
       file.passwordSalt
@@ -899,6 +897,12 @@ async function getPdfSecuritySettings() {
 
     return settings;
   }
+
+  const originalFiles = JSON.stringify(
+    settings.files.map((item) =>
+      typeof item.toObject === "function" ? item.toObject() : item
+    )
+  );
 
   const normalizedFiles =
     PDF_SLOT_ORDER.map((slotKey) => {
@@ -976,9 +980,17 @@ async function getPdfSecuritySettings() {
       return existing;
     });
 
-  settings.files = normalizedFiles;
+  const normalizedSnapshot = JSON.stringify(
+    normalizedFiles.map((item) =>
+      typeof item.toObject === "function" ? item.toObject() : item
+    )
+  );
 
-  await settings.save();
+  // Avoid a MongoDB write when the settings are already normalized.
+  if (originalFiles !== normalizedSnapshot) {
+    settings.files = normalizedFiles;
+    await settings.save();
+  }
 
   return settings;
 }
@@ -1864,6 +1876,39 @@ app.post(
   }
 );
 
+
+// --------------------------------------------------
+// Send Admin Registration Status Email
+// --------------------------------------------------
+async function sendAdminRegistrationStatusEmail(user, status) {
+  if (!resend) throw new Error("RESEND_API_KEY is not configured.");
+
+  const approved = status === "approved";
+  const fromEmail = process.env.RESEND_FROM_EMAIL || "Portfolio <onboarding@resend.dev>";
+  const title = approved ? "Admin Registration Approved" : "Admin Registration Rejected";
+  const message = approved
+    ? "Your administrator registration has been approved. You can now sign in using your registered email and password."
+    : "Thank you for your interest in registering as an administrator. After reviewing your request, the Super Admin has rejected your registration.";
+
+  const result = await resend.emails.send({
+    from: fromEmail,
+    to: user.email,
+    subject: title,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:28px;background:#f8fafc;border-radius:16px;color:#0f172a">
+        <div style="background:#111827;color:#fff;padding:22px;border-radius:12px;text-align:center">
+          <h2 style="margin:0">${title}</h2>
+        </div>
+        <p>Hello ${String(user.name || "there").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;", "'":"&#39;"}[c]))},</p>
+        <p>${message}</p>
+        <p style="color:#475569;font-size:13px">This is an automated message. Please do not share your password with anyone.</p>
+      </div>
+    `,
+  });
+  if (result?.error) throw new Error(result.error.message || "Email provider rejected the message.");
+  return result;
+}
+
 // --------------------------------------------------
 // ADMIN REGISTRATION & SUPER ADMIN MANAGEMENT
 // --------------------------------------------------
@@ -1973,7 +2018,13 @@ app.post("/api/admin/requests/:id/approve", requireSuperAdmin, async (req, res) 
     user.status = "approved";
     await user.save();
 
-    return res.json({ success: true, message: `${user.email} has been approved.` });
+    try {
+      await sendAdminRegistrationStatusEmail(user, "approved");
+      return res.json({ success: true, emailSent: true, message: `${user.email} has been approved and a confirmation email was sent.` });
+    } catch (emailError) {
+      console.error("Admin approval email error:", emailError);
+      return res.json({ success: true, emailSent: false, message: `${user.email} has been approved, but the confirmation email could not be sent. Check RESEND_API_KEY and RESEND_FROM_EMAIL.` });
+    }
   } catch (error) {
     console.error("Admin approval error:", error);
     return res.status(500).json({ message: "Unable to approve admin request." });
@@ -1988,7 +2039,13 @@ app.post("/api/admin/requests/:id/reject", requireSuperAdmin, async (req, res) =
     user.status = "rejected";
     await user.save();
 
-    return res.json({ success: true, message: `${user.email} has been rejected.` });
+    try {
+      await sendAdminRegistrationStatusEmail(user, "rejected");
+      return res.json({ success: true, emailSent: true, message: `${user.email} has been rejected and a notification email was sent.` });
+    } catch (emailError) {
+      console.error("Admin rejection email error:", emailError);
+      return res.json({ success: true, emailSent: false, message: `${user.email} has been rejected, but the notification email could not be sent. Check RESEND_API_KEY and RESEND_FROM_EMAIL.` });
+    }
   } catch (error) {
     console.error("Admin rejection error:", error);
     return res.status(500).json({ message: "Unable to reject admin request." });
