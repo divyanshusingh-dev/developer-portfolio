@@ -12,6 +12,18 @@ const { Resend } = require("resend");
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Baseline HTTP hardening for the JSON API. The frontend is hosted separately,
+// so these headers do not need to permit arbitrary embedded content.
+app.disable("x-powered-by");
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+  res.setHeader("Cross-Origin-Resource-Policy", "same-site");
+  next();
+});
+
 // --------------------------------------------------
 // CORS
 // --------------------------------------------------
@@ -42,7 +54,7 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 
 // --------------------------------------------------
 // MongoDB
@@ -198,7 +210,7 @@ const DEFAULT_PROTECTION = {
 const DEFAULT_SGPA = {
   firstSemester: 8.72,
   secondSemester: 8.95,
-  thirdSemester: 8.78,
+  thirdSemester: 8.49,
   fourthSemester: null,
   fifthSemester: null,
   sixthSemester: null,

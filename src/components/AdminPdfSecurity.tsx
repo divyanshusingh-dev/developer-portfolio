@@ -213,6 +213,70 @@ function AdminPdfSecurity() {
   const [pendingAdminRequests, setPendingAdminRequests] = useState<AdminRequest[]>([])
   const [registeredAdmins, setRegisteredAdmins] = useState<AdminUser[]>([])
   const [adminManagementLoading, setAdminManagementLoading] = useState(false)
+  const [adminDataLastRefreshed, setAdminDataLastRefreshed] = useState<string | null>(null)
+  const [adminSearch, setAdminSearch] = useState("")
+  const [adminStatusFilter, setAdminStatusFilter] = useState("all")
+  const [activityLog, setActivityLog] = useState<Array<{ id: string; action: string; detail: string; at: string }>>([])
+  const [showActivityLog, setShowActivityLog] = useState(false)
+  const [seenPendingCount, setSeenPendingCount] = useState(0)
+  const [confirmationModal, setConfirmationModal] = useState<{ title: string; message: string; confirmLabel: string; danger?: boolean; onConfirm: () => void } | null>(null)
+
+  const approvedAdminCount = registeredAdmins.filter((user) => user.status === "approved").length
+  const rejectedAdminCount = registeredAdmins.filter((user) => user.status === "rejected").length
+  const filteredAdmins = registeredAdmins.filter((user) => {
+    const query = adminSearch.trim().toLowerCase()
+    const matchesQuery = !query || user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query)
+    const matchesStatus = adminStatusFilter === "all" || user.status === adminStatusFilter
+    return matchesQuery && matchesStatus
+  })
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("admin_panel_activity_log")
+      if (stored) setActivityLog(JSON.parse(stored).slice(0, 30))
+      setSeenPendingCount(Number(localStorage.getItem("admin_panel_seen_pending") || "0"))
+    } catch {
+      // Ignore unavailable or malformed local activity data.
+    }
+  }, [])
+
+  useEffect(() => {
+    if (pendingAdminRequests.length > seenPendingCount) {
+      // In-app notification indicator; server-side push/email notifications require backend support.
+    }
+  }, [pendingAdminRequests.length, seenPendingCount])
+
+  const recordActivity = (action: string, detail: string) => {
+    const entry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, action, detail, at: new Date().toISOString() }
+    setActivityLog((current) => {
+      const next = [entry, ...current].slice(0, 30)
+      try { localStorage.setItem("admin_panel_activity_log", JSON.stringify(next)) } catch { /* storage may be unavailable */ }
+      return next
+    })
+  }
+
+  const markPendingNotificationsSeen = () => {
+    setSeenPendingCount(pendingAdminRequests.length)
+    try { localStorage.setItem("admin_panel_seen_pending", String(pendingAdminRequests.length)) } catch { /* storage may be unavailable */ }
+  }
+
+  const exportAdminReport = () => {
+    const rows = [
+      ["Name", "Email", "Role", "Status", "Created At", "Updated At"],
+      ...filteredAdmins.map((user) => [user.name, user.email, user.role, user.status, user.createdAt, user.updatedAt]),
+    ]
+    const csv = rows.map((row) => row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n")
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `admin-report-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+    recordActivity("Report exported", `${filteredAdmins.length} administrator record(s) exported to CSV`)
+  }
 
   const selectedOption = useMemo(
     () => PDF_OPTIONS.find((option) => option.slot === selectedSlot),
@@ -516,6 +580,7 @@ function AdminPdfSecurity() {
 
       setPendingAdminRequests(requestsData.requests || [])
       setRegisteredAdmins(usersData.users || [])
+      setAdminDataLastRefreshed(new Date().toISOString())
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load admin management.")
     } finally {
@@ -593,6 +658,7 @@ function AdminPdfSecurity() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.message || `Unable to ${action} admin request.`)
       setSuccess(data.message || `Admin request ${action}d successfully.`)
+      recordActivity(`Request ${action}d`, `Registration request ${id}`)
       await loadAdminManagement()
     } catch (err) {
       setError(err instanceof Error ? err.message : `Unable to ${action} admin request.`)
@@ -613,6 +679,7 @@ function AdminPdfSecurity() {
       const data = await response.json()
       if (!response.ok) throw new Error(data.message || `Unable to ${action} admin.`)
       setSuccess(data.message || `Admin ${action}d successfully.`)
+      recordActivity(`Admin ${action}d`, `Administrator ${id}`)
       await loadAdminManagement()
     } catch (err) {
       setError(err instanceof Error ? err.message : `Unable to ${action} admin.`)
@@ -1332,17 +1399,25 @@ function AdminPdfSecurity() {
     }
   }
 
-  const handleDelete = async (file: PdfSetting) => {
+  const handleDelete = async (file: PdfSetting, confirmedFromModal = false) => {
     if (!file.hasFile) {
       setError(`${file.displayName} has not been uploaded yet.`)
       return
     }
 
-    const confirmed = window.confirm(
-      `Delete the uploaded PDF from ${file.displayName}?\n\nThe fixed portfolio slot will remain available for a future upload.`
-    )
-
-    if (!confirmed) return
+    if (!confirmedFromModal) {
+      setConfirmationModal({
+        title: "Delete uploaded PDF?",
+        message: `Delete the uploaded PDF from ${file.displayName}? The fixed portfolio slot will remain available for a future upload.`,
+        confirmLabel: "Delete PDF",
+        danger: true,
+        onConfirm: () => {
+          setConfirmationModal(null)
+          void handleDelete(file, true)
+        },
+      })
+      return
+    }
 
     try {
       setIsSaving(true)
@@ -1949,69 +2024,148 @@ function AdminPdfSecurity() {
         </div>
 
         {adminRole === "superadmin" && (
-          <section className="mb-6 rounded-3xl border border-cyan-400/20 bg-slate-900/80 p-5 shadow-xl sm:p-7">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <section className="mb-8 space-y-6">
+            <div className="flex flex-col gap-4 rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl sm:flex-row sm:items-center sm:justify-between sm:p-7">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">Super Admin</p>
-                <h2 className="mt-2 text-xl font-bold text-white sm:text-2xl">Admin Access Management</h2>
-                <p className="mt-2 text-sm leading-6 text-slate-400">Review registration requests and manage approved administrator accounts.</p>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">Super Admin</p>
+                <h2 className="mt-2 text-2xl font-bold text-white sm:text-3xl">Admin Access Management</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Review registration requests and manage approved administrator accounts.</p>
               </div>
-              <button type="button" onClick={() => void loadAdminManagement()} disabled={adminManagementLoading} className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-300 hover:border-cyan-400/40 hover:text-cyan-300 disabled:opacity-50">{adminManagementLoading ? "Refreshing..." : "Refresh"}</button>
+              <div className="flex flex-col items-start gap-1.5 sm:items-end">
+                <button type="button" onClick={() => void loadAdminManagement()} disabled={adminManagementLoading} className="inline-flex w-fit items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:border-cyan-400/50 hover:text-cyan-300 disabled:opacity-50">
+                  <svg className={`h-4 w-4 ${adminManagementLoading ? "animate-spin" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.6 9a7 7 0 0 1 11.7-2L20 12M4 12l2.7 5a7 7 0 0 0 11.7-2"/></svg>
+                  {adminManagementLoading ? "Refreshing..." : "Refresh"}
+                </button>
+                <p className="text-[11px] text-slate-500" aria-live="polite">{adminManagementLoading ? "Updating administrator data…" : adminDataLastRefreshed ? `Last updated ${new Date(adminDataLastRefreshed).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Data not refreshed yet"}</p>
+              </div>
+              <button type="button" onClick={markPendingNotificationsSeen} className="relative inline-flex w-fit items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/5 px-4 py-2.5 text-sm font-semibold text-amber-200 hover:bg-amber-400/10" aria-label={`${Math.max(0, pendingAdminRequests.length - seenPendingCount)} new pending request notifications; mark as seen`}>
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+                Notifications{pendingAdminRequests.length > seenPendingCount && <span className="rounded-full bg-amber-300 px-1.5 py-0.5 text-[10px] font-black text-slate-950">{pendingAdminRequests.length - seenPendingCount}</span>}
+              </button>
             </div>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">Pending Requests</p>
-                <p className="mt-2 text-3xl font-bold text-white">{pendingAdminRequests.length}</p>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="relative overflow-hidden rounded-2xl border border-amber-400/20 bg-slate-900/80 p-5 shadow-lg sm:p-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-400">Pending Requests</p>
+                    <p className="mt-3 text-4xl font-bold tracking-tight text-white">{pendingAdminRequests.length}</p>
+                    <p className="mt-2 text-xs text-slate-500">Awaiting your review</p>
+                  </div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-400/10 text-amber-300">
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M19 8v6m-3-3h6"/></svg>
+                  </div>
+                </div>
+                <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-amber-400 transition-all" style={{ width: `${pendingAdminRequests.length ? 100 : 0}%` }} /></div>
               </div>
-              <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-emerald-300">Registered Admins</p>
-                <p className="mt-2 text-3xl font-bold text-white">{registeredAdmins.length}</p>
+              <div className="relative overflow-hidden rounded-2xl border border-emerald-400/20 bg-slate-900/80 p-5 shadow-lg sm:p-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-400">Registered Admins</p>
+                    <p className="mt-3 text-4xl font-bold tracking-tight text-white">{registeredAdmins.length}</p>
+                    <p className="mt-2 text-xs text-slate-500">Administrator accounts</p>
+                  </div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-300">
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M20 8v6m-3-3h6"/></svg>
+                  </div>
+                </div>
+                <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-emerald-400 transition-all" style={{ width: `${registeredAdmins.length ? 100 : 0}%` }} /></div>
               </div>
             </div>
 
-            <div className="mt-6">
-              <h3 className="text-base font-bold text-white">Pending Registration Requests</h3>
-              <div className="mt-3 space-y-3">
-                {pendingAdminRequests.length === 0 ? (
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-5 text-sm text-slate-500">No pending registration requests.</div>
-                ) : pendingAdminRequests.map((request) => (
-                  <div key={request._id} className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <p className="font-semibold text-white">{request.name}</p>
-                      <p className="mt-1 text-sm text-slate-400">{request.email}</p>
-                      <p className="mt-1 text-xs text-slate-600">Requested {formatDate(request.createdAt)}</p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => void updateAdminRequest(request._id, "approve")} disabled={adminManagementLoading} className="rounded-xl bg-emerald-400 px-4 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-300 disabled:opacity-50">Approve</button>
-                      <button type="button" onClick={() => void updateAdminRequest(request._id, "reject")} disabled={adminManagementLoading} className="rounded-xl border border-red-400/30 px-4 py-2 text-xs font-bold text-red-300 hover:bg-red-400/10 disabled:opacity-50">Reject</button>
+            <div className="grid items-stretch gap-6 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-lg sm:p-6">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-bold text-white">Administrator Status Overview</h3>
+                    <p className="mt-1 text-xs text-slate-500">Current account distribution</p>
+                  </div>
+                  <span className="rounded-lg bg-cyan-400/10 px-2.5 py-1.5 text-xs font-semibold text-cyan-300">Live data</span>
+                </div>
+                <div className="mt-6 flex flex-col items-center gap-6 sm:flex-row">
+                  <div className="relative flex h-36 w-36 shrink-0 items-center justify-center rounded-full" style={{ background: `conic-gradient(#34d399 ${registeredAdmins.length ? (approvedAdminCount / registeredAdmins.length) * 360 : 0}deg, #fbbf24 0deg)` }}>
+                    <div className="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-slate-900">
+                      <span className="text-3xl font-bold text-white">{registeredAdmins.length}</span>
+                      <span className="mt-1 text-[10px] uppercase tracking-wider text-slate-500">Total admins</span>
                     </div>
                   </div>
-                ))}
+                  <div className="w-full flex-1 space-y-4">
+                    <div>
+                      <div className="mb-2 flex items-center justify-between gap-3 text-sm"><span className="flex items-center gap-2 text-slate-300"><span className="h-2.5 w-2.5 rounded-full bg-emerald-400"/>Approved</span><span className="font-semibold text-white">{approvedAdminCount}</span></div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${registeredAdmins.length ? (approvedAdminCount / registeredAdmins.length) * 100 : 0}%` }}/></div>
+                    </div>
+                    <div>
+                      <div className="mb-2 flex items-center justify-between gap-3 text-sm"><span className="flex items-center gap-2 text-slate-300"><span className="h-2.5 w-2.5 rounded-full bg-amber-400"/>Disabled</span><span className="font-semibold text-white">{registeredAdmins.filter((u) => u.status === "disabled").length}</span></div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-amber-400" style={{ width: `${registeredAdmins.length ? (registeredAdmins.filter((u) => u.status === "disabled").length / registeredAdmins.length) * 100 : 0}%` }}/></div>
+                    </div>
+                    <div>
+                      <div className="mb-2 flex items-center justify-between gap-3 text-sm"><span className="flex items-center gap-2 text-slate-300"><span className="h-2.5 w-2.5 rounded-full bg-rose-400"/>Rejected</span><span className="font-semibold text-white">{rejectedAdminCount}</span></div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-rose-400" style={{ width: `${registeredAdmins.length ? (rejectedAdminCount / registeredAdmins.length) * 100 : 0}%` }}/></div>
+                    </div>
+                    <div>
+                      <div className="mb-2 flex items-center justify-between gap-3 text-sm"><span className="flex items-center gap-2 text-slate-300"><span className="h-2.5 w-2.5 rounded-full bg-cyan-400"/>Pending requests</span><span className="font-semibold text-white">{pendingAdminRequests.length}</span></div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-cyan-400" style={{ width: `${pendingAdminRequests.length ? 100 : 0}%` }}/></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-lg sm:p-6">
+                <h3 className="text-base font-bold text-white">Pending Registration Requests</h3>
+                <p className="mt-1 text-xs text-slate-500">Review and respond to new admin applications.</p>
+                <div className="mt-5 space-y-3">
+                  {pendingAdminRequests.length === 0 ? (
+                    <div className="flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-950/40 px-4 py-6 text-center">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 text-slate-400"><svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="m4 7 8 6 8-6"/></svg></div>
+                      <p className="mt-3 text-sm font-medium text-slate-300">No pending registration requests</p>
+                      <p className="mt-1 text-xs text-slate-500">New requests will appear here.</p>
+                    </div>
+                  ) : pendingAdminRequests.map((request) => (
+                    <div key={request._id} className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0"><p className="font-semibold text-white">{request.name}</p><p className="mt-1 break-all text-sm text-slate-400">{request.email}</p><p className="mt-1 text-xs text-slate-600">Requested {formatDate(request.createdAt)}</p></div>
+                        <div className="flex shrink-0 gap-2"><button type="button" onClick={() => void updateAdminRequest(request._id, "approve")} disabled={adminManagementLoading} className="rounded-lg bg-emerald-400 px-3.5 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-300 disabled:opacity-50">Approve</button><button type="button" onClick={() => void updateAdminRequest(request._id, "reject")} disabled={adminManagementLoading} className="rounded-lg border border-red-400/30 px-3.5 py-2 text-xs font-bold text-red-300 hover:bg-red-400/10 disabled:opacity-50">Reject</button></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
-            <div className="mt-8">
-              <h3 className="text-base font-bold text-white">Registered Administrators</h3>
-              <div className="mt-3 space-y-3">
-                {registeredAdmins.length === 0 ? (
-                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-5 text-sm text-slate-500">No additional administrators have been approved yet.</div>
-                ) : registeredAdmins.map((user) => (
-                  <div key={user._id} className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-4 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-semibold text-white">{user.name}</p>
-                        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${user.status === "approved" ? "border-emerald-400/20 bg-emerald-400/5 text-emerald-300" : "border-slate-700 bg-slate-900 text-slate-400"}`}>{user.status}</span>
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-lg sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div><h3 className="text-lg font-bold text-white">Registered Administrators</h3><p className="mt-1 text-sm text-slate-500">Search, filter, export and manage administrator access.</p></div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-slate-700 px-3 py-1 text-xs font-medium text-slate-400">{registeredAdmins.length} total</span>
+                  <button type="button" onClick={exportAdminReport} className="rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-400/10">Export CSV</button>
+                  <button type="button" onClick={() => setShowActivityLog((value) => !value)} className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-bold text-slate-300 hover:border-cyan-400/40">{showActivityLog ? "Hide activity" : `Activity log (${activityLog.length})`}</button>
+                  {activityLog.length > 0 && <button type="button" onClick={() => setConfirmationModal({ title: "Clear activity log?", message: "This will remove the activity history stored in this browser. This action cannot be undone.", confirmLabel: "Clear log", danger: true, onConfirm: () => { setActivityLog([]); try { localStorage.removeItem("admin_panel_activity_log") } catch { /* storage may be unavailable */ } setConfirmationModal(null) } })} className="rounded-lg border border-red-400/30 px-3 py-2 text-xs font-bold text-red-300 hover:bg-red-400/10">Clear log</button>}
+                </div>
+              </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_190px]">
+                <label className="block"><span className="sr-only">Search administrators</span><input value={adminSearch} onChange={(event) => setAdminSearch(event.target.value)} placeholder="Search by name or email…" className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400" /></label>
+                <label className="block"><span className="sr-only">Filter by status</span><select value={adminStatusFilter} onChange={(event) => setAdminStatusFilter(event.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm text-white outline-none focus:border-cyan-400"><option value="all">All statuses</option><option value="approved">Approved</option><option value="disabled">Disabled</option><option value="pending">Pending</option><option value="rejected">Rejected</option></select></label>
+              </div>
+              {showActivityLog && <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/60 p-4"><div className="mb-3 flex items-center justify-between gap-3"><h4 className="text-sm font-bold text-white">Recent activity on this browser</h4><span className="text-[11px] text-amber-300">Local log · not a secure audit trail</span></div>{activityLog.length === 0 ? <p className="text-sm text-slate-500">No actions recorded in this browser yet.</p> : <div className="space-y-3">{activityLog.map((item) => <div key={item.id} className="flex flex-col gap-1 border-b border-slate-800 pb-3 last:border-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-sm font-medium text-slate-200">{item.action}</p><p className="text-xs text-slate-500">{item.detail}</p></div><time className="shrink-0 text-[11px] text-slate-600">{formatDate(item.at)}</time></div>)}</div>}</div>}
+              <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                {filteredAdmins.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-700 px-4 py-8 text-center text-sm text-slate-500 xl:col-span-2">{registeredAdmins.length === 0 ? "No additional administrators have been approved yet." : "No administrators match your search and filter."}</div>
+                ) : filteredAdmins.map((user) => (
+                  <div key={user._id} className="flex min-w-0 flex-col gap-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4 transition hover:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-cyan-400/10 text-sm font-bold text-cyan-300">{user.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-white">{user.name}</p><span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${user.status === "approved" ? "border-emerald-400/20 bg-emerald-400/5 text-emerald-300" : user.status === "disabled" ? "border-amber-400/20 bg-amber-400/5 text-amber-300" : "border-slate-700 bg-slate-900 text-slate-400"}`}>{user.status}</span></div>
+                        <p className="mt-1 break-all text-sm text-slate-400">{user.email}</p>
                       </div>
-                      <p className="mt-1 text-sm text-slate-400">{user.email}</p>
                     </div>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex shrink-0 gap-2 sm:justify-end">
                       {user.status === "disabled" ? (
-                        <button type="button" onClick={() => void updateRegisteredAdmin(user._id, "enable")} disabled={adminManagementLoading} className="rounded-xl border border-emerald-400/30 px-3.5 py-2 text-xs font-bold text-emerald-300 hover:bg-emerald-400/10 disabled:opacity-50">Enable</button>
+                        <button type="button" onClick={() => void updateRegisteredAdmin(user._id, "enable")} disabled={adminManagementLoading} className="rounded-lg border border-emerald-400/30 px-3.5 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-400/10 disabled:opacity-50">Enable</button>
                       ) : (
-                        <button type="button" onClick={() => void updateRegisteredAdmin(user._id, "disable")} disabled={adminManagementLoading} className="rounded-xl border border-amber-400/30 px-3.5 py-2 text-xs font-bold text-amber-300 hover:bg-amber-400/10 disabled:opacity-50">Disable</button>
+                        <button type="button" onClick={() => setConfirmationModal({ title: "Disable admin access?", message: `Are you sure you want to disable access for ${user.name} (${user.email})? They will no longer be able to access the admin panel until enabled again.`, confirmLabel: "Disable Access", danger: true, onConfirm: () => { setConfirmationModal(null); void updateRegisteredAdmin(user._id, "disable") } })} disabled={adminManagementLoading} className="rounded-lg border border-amber-400/30 px-3.5 py-2 text-xs font-bold text-amber-300 transition hover:bg-amber-400/10 disabled:opacity-50">Disable</button>
                       )}
-                      <button type="button" onClick={() => { if (window.confirm(`Delete ${user.email}?`)) void updateRegisteredAdmin(user._id, "delete") }} disabled={adminManagementLoading} className="rounded-xl border border-red-400/30 px-3.5 py-2 text-xs font-bold text-red-300 hover:bg-red-400/10 disabled:opacity-50">Delete</button>
+                      <button type="button" onClick={() => setConfirmationModal({ title: "Delete administrator?", message: `This will permanently delete the administrator account for ${user.name} (${user.email}). This action may not be reversible.`, confirmLabel: "Delete Admin", danger: true, onConfirm: () => { setConfirmationModal(null); void updateRegisteredAdmin(user._id, "delete") } })} disabled={adminManagementLoading} className="rounded-lg border border-red-400/30 px-3.5 py-2 text-xs font-bold text-red-300 transition hover:bg-red-400/10 disabled:opacity-50">Delete</button>
                     </div>
                   </div>
                 ))}
@@ -2974,6 +3128,49 @@ function AdminPdfSecurity() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {confirmationModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setConfirmationModal(null)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setConfirmationModal(null)
+          }}
+          role="presentation"
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="admin-confirmation-title"
+            aria-describedby="admin-confirmation-message"
+            className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/40"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="border-b border-slate-800 bg-gradient-to-r from-amber-400/10 via-red-400/5 to-transparent px-6 py-5">
+              <div className="flex items-start gap-4">
+                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${confirmationModal.danger ? "border-amber-400/25 bg-amber-400/10 text-amber-300" : "border-cyan-400/25 bg-cyan-400/10 text-cyan-300"}`} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+                    <path d="M12 9v4" strokeLinecap="round" />
+                    <path d="M12 17h.01" strokeLinecap="round" />
+                    <path d="M10.3 3.9 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 id="admin-confirmation-title" className="text-lg font-bold text-white">{confirmationModal.title}</h2>
+                  <p id="admin-confirmation-message" className="mt-2 break-words text-sm leading-6 text-slate-400">{confirmationModal.message}</p>
+                </div>
+                <button type="button" onClick={() => setConfirmationModal(null)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xl text-slate-500 transition hover:bg-slate-800 hover:text-white" aria-label="Close confirmation">&times;</button>
+              </div>
+            </div>
+            <div className="flex flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setConfirmationModal(null)} className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:bg-slate-800 hover:text-white">Cancel</button>
+              <button type="button" onClick={confirmationModal.onConfirm} className={`rounded-xl px-4 py-2.5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50 ${confirmationModal.danger ? "bg-red-500 hover:bg-red-400" : "bg-cyan-500 hover:bg-cyan-400"}`}>{confirmationModal.confirmLabel}</button>
+            </div>
           </div>
         </div>
       )}

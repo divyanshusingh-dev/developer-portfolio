@@ -1,35 +1,34 @@
-import Navbar from "./components/Navbar"
-import Hero from "./components/Hero"
-import About from "./components/About"
-import Skills from "./components/Skills"
-import Projects from "./components/Projects"
-import Experience from "./components/Experience"
-import Education from "./components/Education"
-import Contact from "./components/Contact"
-import Footer from "./components/Footer"
+
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+
+import Navbar from "./components/Navbar";
+import Hero from "./components/Hero";
+import About from "./components/About";
+import Skills from "./components/Skills";
+import Projects from "./components/Projects";
+import GitHubActivity from "./components/GitHubActivity";
+import Certifications from "./components/Certifications";
+import DesignShowcase from "./components/DesignShowcase";
+import Experience from "./components/Experience";
+import Education from "./components/Education";
+import Contact from "./components/Contact";
+import Footer from "./components/Footer";
 import AdminPdfSecurity from "./components/AdminPdfSecurity";
 
-function App() {
-  const isAdminPage =
-    window.location.pathname === "/admin-pdf-security"
 
-  if (isAdminPage) {
-    return <AdminPdfSecurity />
-  }
+import Copyright from "./components/Copyright";
+import PrivacyPolicy from "./components/PrivacyPolicy";
+import TermsOfUse from "./components/TermsOfUse";
 
+function PortfolioLayout() {
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#020617] text-white">
-      {/* =====================================================
-          GLOBAL BACKGROUND
-      ====================================================== */}
-
+      {/* GLOBAL BACKGROUND */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
         {/* Base */}
-
         <div className="absolute inset-0 bg-[#020617]" />
 
         {/* Cyan Glow - Top Left */}
-
         <div
           className="
             absolute
@@ -44,7 +43,6 @@ function App() {
         />
 
         {/* Blue Glow - Right */}
-
         <div
           className="
             absolute
@@ -59,7 +57,6 @@ function App() {
         />
 
         {/* Purple Glow - Bottom */}
-
         <div
           className="
             absolute
@@ -74,7 +71,6 @@ function App() {
         />
 
         {/* Cyan Center Glow */}
-
         <div
           className="
             absolute
@@ -88,10 +84,7 @@ function App() {
           "
         />
 
-        {/* =================================================
-            GRID
-        ================================================== */}
-
+        {/* GRID */}
         <div
           className="absolute inset-0 opacity-[0.06]"
           style={{
@@ -101,10 +94,7 @@ function App() {
           }}
         />
 
-        {/* =================================================
-            TOP LIGHT
-        ================================================== */}
-
+        {/* TOP LIGHT */}
         <div
           className="
             absolute
@@ -121,10 +111,7 @@ function App() {
           "
         />
 
-        {/* =================================================
-            VIGNETTE
-        ================================================== */}
-
+        {/* VIGNETTE */}
         <div
           className="
             absolute
@@ -134,33 +121,49 @@ function App() {
         />
       </div>
 
-      {/* =====================================================
-          WEBSITE CONTENT
-      ====================================================== */}
-
+      {/* WEBSITE CONTENT */}
       <div className="relative z-10">
-        {/* Navbar */}
-
         <Navbar />
-
-        {/* Main */}
 
         <main>
           <Hero />
           <About />
           <Skills />
           <Projects />
+          <GitHubActivity />
+          <Certifications />
+          <DesignShowcase />
           <Experience />
           <Education />
           <Contact />
         </main>
 
-        {/* Footer */}
-
         <Footer />
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Main Portfolio */}
+        <Route path="/" element={<PortfolioLayout />} />
+
+        {/* Existing Admin Page */}
+        <Route
+          path="/admin-pdf-security"
+          element={<AdminPdfSecurity />}
+        />
+
+        {/* Legal Pages */}
+        <Route path="/copyright" element={<Copyright />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="/terms-of-use" element={<TermsOfUse />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+export default App;

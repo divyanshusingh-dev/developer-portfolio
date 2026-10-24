@@ -53,7 +53,7 @@ const fallbackSemesters: Semester[] = [
     slot: "thirdSemester",
     name: "Third Semester",
     fileName: "3rd-semester-dmc.pdf",
-    sgpa: 8.78,
+    sgpa: 8.49,
     enabled: true,
     hasFile: true,
     available: true,
@@ -87,7 +87,7 @@ const fallbackSemesters: Semester[] = [
   },
 ]
 
-const fallbackCgpa = (8.72 + 8.95 + 8.78) / 3
+const fallbackCgpa = (8.72 + 8.95 + 8.49) / 3
 
 function Education() {
   const [semesters, setSemesters] = useState<Semester[]>(

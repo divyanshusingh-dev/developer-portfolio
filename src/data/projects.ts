@@ -1,23 +1,48 @@
+
 export const projects = [
   {
     title: "Developer Portfolio",
+    label: "Personal Portfolio",
     description:
-      "A modern and responsive personal portfolio website built to showcase my skills, projects, experience and professional profile.",
-    technologies: ["React", "TypeScript", "Tailwind CSS", "Vite"],
-    github: "https://github.com/",
+      "A modern and responsive personal portfolio website showcasing my skills, projects, experience and professional profile.",
+    technologies: [
+      "React",
+      "TypeScript",
+      "Tailwind CSS",
+      "Vite",
+    ],
+    github:
+      "https://github.com/divyanshusingh-dev/developer-portfolio",
+    live: "",
   },
   {
-    title: "Web Development Project",
+    title: "Handwritten Character Recognition",
+    label: "Machine Learning",
     description:
-      "A responsive web application focused on clean UI, reusable components and a smooth user experience.",
-    technologies: ["React", "JavaScript", "Tailwind CSS"],
-    github: "https://github.com/",
+      "A machine-learning project focused on handwritten character recognition using Python and deep learning techniques.",
+    technologies: [
+      "Python",
+      "TensorFlow",
+      "Machine Learning",
+      "CNN",
+    ],
+    github:
+      "https://github.com/divyanshusingh-dev/CodeAlpha_HandwrittenCharacterRecognition",
+    live: "",
   },
   {
     title: "Frontend Practice Project",
+    label: "Web Development",
     description:
-      "A frontend project created to practice responsive layouts, modern UI design and component-based development.",
-    technologies: ["HTML", "CSS", "JavaScript", "React"],
-    github: "https://github.com/",
+      "Frontend development practice focused on responsive layouts, reusable components and modern user interfaces.",
+    technologies: [
+      "HTML",
+      "CSS",
+      "JavaScript",
+      "React",
+    ],
+    github:
+      "https://github.com/divyanshusingh-dev?tab=repositories",
+    live: "",
   },
-]
+];
