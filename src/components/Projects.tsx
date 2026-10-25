@@ -242,7 +242,7 @@ function Projects() {
 
                       {previewImage ? (
                         <a
-                          href={project.live || project.image}
+                          href={project.live}
                           target="_blank"
                           rel="noopener noreferrer"
                           aria-label={`Open ${project.title} website preview`}
