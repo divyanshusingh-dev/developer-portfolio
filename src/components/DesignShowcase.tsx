@@ -87,6 +87,7 @@ export default function DesignShowcase() {
                     src={design.image}
                     alt={design.alt}
                     loading="lazy"
+                    draggable={false}
                     className="aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </a>
@@ -120,6 +121,8 @@ export default function DesignShowcase() {
         .showcase-slider {
           width: 100%;
           overflow: hidden;
+          position: relative;
+          touch-action: pan-y;
           -webkit-mask-image: linear-gradient(
             to right,
             transparent,
@@ -158,13 +161,37 @@ export default function DesignShowcase() {
           }
         }
 
+        @media (hover: hover) and (pointer: fine) {
+          .showcase-slider:hover .showcase-track {
+            animation-play-state: paused;
+          }
+        }
+
         @media (max-width: 640px) {
+          .showcase-slider {
+            -webkit-mask-image: linear-gradient(
+              to right,
+              transparent,
+              black 2%,
+              black 98%,
+              transparent
+            );
+            mask-image: linear-gradient(
+              to right,
+              transparent,
+              black 2%,
+              black 98%,
+              transparent
+            );
+          }
+
           .showcase-card {
-            flex-basis: 260px;
+            flex: 0 0 260px;
           }
 
           .showcase-track {
             gap: 16px;
+            animation-duration: 24s;
           }
 
           @keyframes showcase-horizontal-scroll {
@@ -179,8 +206,14 @@ export default function DesignShowcase() {
 
         @media (prefers-reduced-motion: reduce) {
           .showcase-track {
-            animation: none;
+            animation: none !important;
             transform: none;
+          }
+
+          .showcase-slider {
+            overflow-x: auto;
+            -webkit-mask-image: none;
+            mask-image: none;
           }
         }
       `}</style>

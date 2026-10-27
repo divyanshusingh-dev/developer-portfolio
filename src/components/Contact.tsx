@@ -734,7 +734,7 @@ function Contact() {
         </div>
 
         {/* Bottom Email CTA */}
-        <div className="mt-7 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 shadow-xl backdrop-blur-sm">
+        <div className="mt-20 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 shadow-xl backdrop-blur-sm">
           <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
             {/* Left */}
             <div className="flex items-start gap-3">
