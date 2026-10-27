@@ -104,6 +104,7 @@ function Education() {
   const [downloadName, setDownloadName] = useState("")
   const [downloadPassword, setDownloadPassword] = useState("")
   const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [passwordError, setPasswordError] = useState("")
   const [error, setError] = useState("")
   const [isDownloading, setIsDownloading] = useState(false)
 
@@ -232,6 +233,7 @@ function Education() {
 
       setDownloadFile(fileName)
       setDownloadName(displayName)
+      setPasswordError("")
 
       if (data.protected) {
         setDownloadPassword("")
@@ -256,6 +258,7 @@ function Education() {
   ) => {
     setIsDownloading(true)
     setError("")
+    setPasswordError("")
 
     try {
       const response = await fetch(
@@ -297,12 +300,18 @@ function Education() {
       setShowPasswordModal(false)
       setDownloadFile(null)
       setDownloadPassword("")
+      setPasswordError("")
     } catch (err) {
-      setError(
+      const message =
         err instanceof Error
           ? err.message
           : `Unable to download ${displayName}.`
-      )
+
+      if (showPasswordModal) {
+        setPasswordError(message)
+      } else {
+        setError(message)
+      }
     } finally {
       setIsDownloading(false)
     }
@@ -689,6 +698,7 @@ function Education() {
                   setShowPasswordModal(false)
                   setDownloadFile(null)
                   setDownloadPassword("")
+                  setPasswordError("")
                 }}
                 className="text-xl text-slate-500 transition hover:text-white"
                 aria-label="Close"
@@ -700,9 +710,10 @@ function Education() {
             <input
               type="password"
               value={downloadPassword}
-              onChange={(event) =>
+              onChange={(event) => {
                 setDownloadPassword(event.target.value)
-              }
+                setPasswordError("")
+              }}
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   void downloadPdf(
@@ -714,8 +725,24 @@ function Education() {
               }}
               autoFocus
               placeholder="Enter PDF password"
-              className="mt-6 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-sm text-white outline-none transition focus:border-cyan-400"
+              aria-invalid={Boolean(passwordError)}
+              aria-describedby={passwordError ? "pdf-password-error" : undefined}
+              className={`mt-6 w-full rounded-xl border bg-slate-950 px-4 py-3.5 text-sm text-white outline-none transition focus:border-cyan-400 ${
+                passwordError ? "border-red-500" : "border-slate-700"
+              }`}
             />
+
+            {passwordError && (
+              <div
+                id="pdf-password-error"
+                role="alert"
+                aria-live="polite"
+                className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
+              >
+                <p className="font-semibold">Password verification failed</p>
+                <p className="mt-1 break-words">{passwordError}</p>
+              </div>
+            )}
 
             <div className="mt-4 flex gap-3">
               <button
@@ -724,6 +751,7 @@ function Education() {
                   setShowPasswordModal(false)
                   setDownloadFile(null)
                   setDownloadPassword("")
+                  setPasswordError("")
                 }}
                 className="flex-1 rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
               >
