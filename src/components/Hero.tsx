@@ -533,7 +533,7 @@ function Hero() {
 
               Divyanshu{" "}
 
-              <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-r from-cyan-400 via-cyan-400 to-cyan-400 bg-clip-text text-transparent">
 
                 Singh
 
