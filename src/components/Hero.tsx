@@ -25,6 +25,7 @@ function Hero() {
     "React Developer",
 
     "Web Developer",
+"Graphic Designer",
 
   ]
 
