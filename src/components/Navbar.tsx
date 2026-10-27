@@ -288,7 +288,7 @@ function Navbar() {
             <a
               href="/admin-pdf-security"
               onClick={handleLinkClick}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-purple-400/40 bg-purple-400/5 px-3.5 py-2.5 text-sm font-semibold text-purple-200 transition-all duration-300 hover:border-purple-400 hover:bg-purple-400 hover:text-white"
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-red-400/40 bg-red-400/5 px-3.5 py-2.5 text-sm font-semibold text-green-200 transition-all duration-300 hover:border-green-400 hover:bg-green-400 hover:text-white"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
