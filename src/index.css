@@ -461,3 +461,41 @@ a {
     transform: none !important;
   }
 }
+
+/* ========================================
+   GLOBAL BUTTON SIZE CONTROL
+======================================== */
+
+:root {
+  --button-px: 0.875rem;
+  --button-py: 0.5rem;
+  --button-font-size: 0.875rem;
+  --button-line-height: 1.25rem;
+}
+
+/* Standard buttons */
+button {
+  padding: var(--button-py) var(--button-px);
+  font-size: var(--button-font-size);
+  line-height: var(--button-line-height);
+}
+
+/* Buttons styled as links */
+a[role="button"],
+.project-action {
+  padding: var(--button-py) var(--button-px);
+  font-size: var(--button-font-size);
+  line-height: var(--button-line-height);
+}
+
+/* Preserve smooth interactions */
+button,
+a[role="button"],
+.project-action {
+  transition:
+    color 220ms ease,
+    background-color 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    transform 220ms ease;
+}

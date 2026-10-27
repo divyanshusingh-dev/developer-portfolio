@@ -15,7 +15,7 @@ function Certifications() {
       <div className="mx-auto max-w-6xl">
         <div className="mb-9">
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-400">Learning & Recognition</p>
-          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Certifications <span className="bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">& achievements</span></h2>
+          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Certifications & achievements</h2>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-slate-400">Selected learning and achievement records. Credential links and certificate scans should be added before presenting an item as independently verified.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

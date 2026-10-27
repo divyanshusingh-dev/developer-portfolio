@@ -71,11 +71,8 @@ function Projects() {
               </span>
             </div>
 
-            <h2 className="max-w-3xl text-3xl font-bold leading-tight tracking-tight text-white sm:text-4xl lg:text-5xl">
-              Turning ideas into{" "}
-              <span className="bg-gradient-to-r from-cyan-300 via-blue-400 to-purple-400 bg-clip-text text-transparent">
-                digital experiences.
-              </span>
+            <h2 className="max-w-3xl text-3xl font-bold leading-tight tracking-tight text-white sm:text-3xl lg:text-4xl">
+              Turning ideas into digital experiences.
             </h2>
 
             <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">

@@ -75,10 +75,7 @@ export default function GitHubActivity() {
             </p>
 
             <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">
-              GitHub{" "}
-              <span className="bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-                activity
-              </span>
+              GitHub Activity
             </h2>
 
             <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
