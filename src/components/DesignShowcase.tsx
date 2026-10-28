@@ -1,6 +1,4 @@
 
-import { useState } from "react";
-
 const designs = [
   {
     title: "College Event Poster",
@@ -23,18 +21,16 @@ const designs = [
 ];
 
 export default function DesignShowcase() {
-  const [isPaused, setIsPaused] = useState(false);
-
   const scrollingDesigns = [...designs, ...designs];
 
   return (
     <section
       id="design-showcase"
-      className="relative overflow-hidden px-6 py-20 sm:px-10 lg:px-16"
+      className="relative overflow-hidden px-5 py-16 sm:px-10 sm:py-20 lg:px-16"
     >
       <div className="mx-auto max-w-7xl">
-        <div className="mb-10">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-cyan-400">
+        <div className="mb-8 sm:mb-10">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-cyan-400 sm:text-sm">
             Creative Work
           </p>
 
@@ -42,44 +38,29 @@ export default function DesignShowcase() {
             Design Showcase
           </h2>
 
-          <p className="mt-4 max-w-2xl text-slate-400">
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-400 sm:text-base">
             A selection of graphic designs, posters, banners and
             social media creatives.
           </p>
         </div>
 
-        <div
-          className="showcase-slider"
-          onMouseEnter={() => setIsPaused(true)}
-          onMouseLeave={() => setIsPaused(false)}
-          onFocusCapture={() => setIsPaused(true)}
-          onBlurCapture={(event) => {
-            if (
-              !event.currentTarget.contains(
-                event.relatedTarget as Node | null
-              )
-            ) {
-              setIsPaused(false);
-            }
-          }}
-        >
-          <div
-            className="showcase-track"
-            style={{
-              animationPlayState: isPaused ? "paused" : "running",
-            }}
-          >
+        <div className="showcase-slider">
+          <div className="showcase-track">
             {scrollingDesigns.map((design, index) => (
               <article
                 key={`${design.image}-${index}`}
-                aria-hidden={index >= designs.length ? true : undefined}
-                className="showcase-card group overflow-hidden rounded-2xl border border-white/10 bg-slate-900/70 transition-colors duration-300 hover:border-cyan-400/50"
+                aria-hidden={
+                  index >= designs.length ? true : undefined
+                }
+                className="showcase-card group overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80 transition-colors duration-300 hover:border-cyan-400/50"
               >
                 <a
                   href={design.image}
                   target="_blank"
                   rel="noreferrer"
-                  tabIndex={index >= designs.length ? -1 : undefined}
+                  tabIndex={
+                    index >= designs.length ? -1 : undefined
+                  }
                   aria-label={`Open ${design.title}`}
                   className="block overflow-hidden"
                 >
@@ -92,12 +73,12 @@ export default function DesignShowcase() {
                   />
                 </a>
 
-                <div className="p-5">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-cyan-400">
+                <div className="p-4 sm:p-5">
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-cyan-400 sm:text-xs">
                     {design.category}
                   </p>
 
-                  <h3 className="text-lg font-semibold text-white">
+                  <h3 className="text-base font-semibold text-white sm:text-lg">
                     {design.title}
                   </h3>
 
@@ -105,7 +86,9 @@ export default function DesignShowcase() {
                     href={design.image}
                     target="_blank"
                     rel="noreferrer"
-                    tabIndex={index >= designs.length ? -1 : undefined}
+                    tabIndex={
+                      index >= designs.length ? -1 : undefined
+                    }
                     className="mt-4 inline-flex text-sm font-medium text-slate-300 transition-colors hover:text-cyan-400"
                   >
                     View Design ↗
@@ -115,14 +98,19 @@ export default function DesignShowcase() {
             ))}
           </div>
         </div>
+
+        <p className="mt-5 text-center text-xs text-slate-500">
+          Explore my creative work
+          <span className="ml-2 text-cyan-400">→</span>
+        </p>
       </div>
 
       <style>{`
         .showcase-slider {
+          position: relative;
           width: 100%;
           overflow: hidden;
-          position: relative;
-          touch-action: pan-y;
+          isolation: isolate;
           -webkit-mask-image: linear-gradient(
             to right,
             transparent,
@@ -143,7 +131,7 @@ export default function DesignShowcase() {
           display: flex;
           width: max-content;
           gap: 24px;
-          animation: showcase-horizontal-scroll 30s linear infinite;
+          animation: showcase-scroll 24s linear infinite;
           will-change: transform;
         }
 
@@ -152,12 +140,17 @@ export default function DesignShowcase() {
           min-width: 0;
         }
 
-        @keyframes showcase-horizontal-scroll {
+        @keyframes showcase-scroll {
           from {
-            transform: translateX(0);
+            transform: translate3d(0, 0, 0);
           }
+
           to {
-            transform: translateX(calc(-50% - 12px));
+            transform: translate3d(
+              calc(-50% - 12px),
+              0,
+              0
+            );
           }
         }
 
@@ -172,48 +165,37 @@ export default function DesignShowcase() {
             -webkit-mask-image: linear-gradient(
               to right,
               transparent,
-              black 2%,
-              black 98%,
+              black 1%,
+              black 99%,
               transparent
             );
             mask-image: linear-gradient(
               to right,
               transparent,
-              black 2%,
-              black 98%,
+              black 1%,
+              black 99%,
               transparent
             );
           }
 
-          .showcase-card {
-            flex: 0 0 260px;
-          }
-
           .showcase-track {
             gap: 16px;
-            animation-duration: 24s;
+            animation-duration: 18s;
+            animation-play-state: running;
           }
 
-          @keyframes showcase-horizontal-scroll {
-            from {
-              transform: translateX(0);
-            }
-            to {
-              transform: translateX(calc(-50% - 8px));
-            }
+          .showcase-card {
+            flex: 0 0 min(260px, 78vw);
+          }
+
+          .showcase-card img {
+            -webkit-user-drag: none;
           }
         }
 
         @media (prefers-reduced-motion: reduce) {
           .showcase-track {
-            animation: none !important;
-            transform: none;
-          }
-
-          .showcase-slider {
-            overflow-x: auto;
-            -webkit-mask-image: none;
-            mask-image: none;
+            animation-duration: 36s;
           }
         }
       `}</style>

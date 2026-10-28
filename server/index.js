@@ -104,6 +104,23 @@ const contactSchema = new mongoose.Schema(
 const Contact = mongoose.model("Contact", contactSchema);
 
 // --------------------------------------------------
+// Portfolio Announcements
+// --------------------------------------------------
+const announcementSchema = new mongoose.Schema(
+  {
+    title: { type: String, required: true, trim: true, maxlength: 100 },
+    message: { type: String, required: true, trim: true, maxlength: 1000 },
+    priority: { type: String, enum: ["normal", "important", "urgent"], default: "normal" },
+    expiresAt: { type: Date, default: null },
+    createdBy: { type: String, trim: true, default: "Super Admin" },
+  },
+  { timestamps: true }
+);
+announcementSchema.index({ createdAt: -1 });
+const Announcement = mongoose.models.Announcement || mongoose.model("Announcement", announcementSchema);
+
+
+// --------------------------------------------------
 // PDF Fixed Slots
 // --------------------------------------------------
 
@@ -1243,6 +1260,102 @@ async function requireSuperAdmin(req, res, next) {
     return res.status(500).json({ message: "Unable to authenticate Super Admin." });
   }
 }
+
+// --------------------------------------------------
+// Announcement API
+// Public visitors can read active notices. Creating requires admin access;
+// deleting requires the backend-verified Super Admin credential.
+// --------------------------------------------------
+app.get("/api/announcements", async (_req, res) => {
+  try {
+    const now = new Date();
+    const announcements = await Announcement.find({
+      $or: [{ expiresAt: null }, { expiresAt: { $exists: false } }, { expiresAt: { $gte: now } }],
+    })
+      .sort({ createdAt: -1 })
+      .limit(50)
+      .lean();
+
+    return res.json({
+      announcements: announcements.map((item) => ({
+        id: String(item._id),
+        title: item.title,
+        message: item.message,
+        priority: item.priority,
+        createdAt: item.createdAt,
+        expiresAt: item.expiresAt || "",
+      })),
+    });
+  } catch (error) {
+    console.error("Public announcements fetch error:", error);
+    return res.status(500).json({ message: "Unable to load announcements." });
+  }
+});
+
+app.post("/api/admin/announcements", requireAdmin, async (req, res) => {
+  try {
+    const title = String(req.body?.title || "").trim();
+    const message = String(req.body?.message || "").trim();
+    const priority = String(req.body?.priority || "normal");
+    const rawExpiry = req.body?.expiresAt;
+
+    if (!title || !message) {
+      return res.status(400).json({ message: "Announcement title and message are required." });
+    }
+    if (title.length > 100 || message.length > 1000) {
+      return res.status(400).json({ message: "Title must be 100 characters or fewer and message 1,000 characters or fewer." });
+    }
+    if (!["normal", "important", "urgent"].includes(priority)) {
+      return res.status(400).json({ message: "Invalid announcement priority." });
+    }
+
+    let expiresAt = null;
+    if (rawExpiry) {
+      const parsedExpiry = new Date(rawExpiry);
+      if (Number.isNaN(parsedExpiry.getTime())) {
+        return res.status(400).json({ message: "Invalid announcement expiry date." });
+      }
+      expiresAt = parsedExpiry;
+    }
+
+    const created = await Announcement.create({
+      title,
+      message,
+      priority,
+      expiresAt,
+      createdBy: req.admin?.email || "Administrator",
+    });
+
+    return res.status(201).json({
+      message: "Announcement published to the portfolio.",
+      announcement: {
+        id: String(created._id),
+        title: created.title,
+        message: created.message,
+        priority: created.priority,
+        createdAt: created.createdAt,
+        expiresAt: created.expiresAt || "",
+      },
+    });
+  } catch (error) {
+    console.error("Announcement publish error:", error);
+    return res.status(500).json({ message: "Unable to publish announcement." });
+  }
+});
+
+app.delete("/api/admin/announcements/:id", requireSuperAdmin, async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid announcement ID." });
+    }
+    const deleted = await Announcement.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "Announcement not found." });
+    return res.json({ message: "Announcement deleted from the portfolio." });
+  } catch (error) {
+    console.error("Announcement delete error:", error);
+    return res.status(500).json({ message: "Unable to delete announcement." });
+  }
+});
 
 // --------------------------------------------------
 // Home

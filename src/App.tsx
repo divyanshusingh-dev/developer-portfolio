@@ -14,7 +14,7 @@ import Education from "./components/Education";
 import Contact from "./components/Contact";
 import Footer from "./components/Footer";
 import AdminPdfSecurity from "./components/AdminPdfSecurity";
-
+import PublicAnnouncements from "./components/PublicAnnouncements";
 
 import Copyright from "./components/Copyright";
 import PrivacyPolicy from "./components/PrivacyPolicy";
@@ -126,6 +126,9 @@ function PortfolioLayout() {
         <Navbar />
 
         <main>
+          {/* Announcements published from the Admin Dashboard */}
+          <PublicAnnouncements />
+
           <Hero />
           <About />
           <Skills />

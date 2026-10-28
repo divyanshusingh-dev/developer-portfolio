@@ -146,6 +146,15 @@ type AdminUser = AdminRequest & {
   updatedAt: string
 }
 
+type Announcement = {
+  id: string
+  title: string
+  message: string
+  priority: "normal" | "important" | "urgent"
+  createdAt: string
+  expiresAt: string | null
+}
+
 function AdminPdfSecurity() {
   const [password, setPassword] = useState("")
   const [adminEmail, setAdminEmail] = useState("")
@@ -220,6 +229,14 @@ function AdminPdfSecurity() {
   const [showActivityLog, setShowActivityLog] = useState(false)
   const [seenPendingCount, setSeenPendingCount] = useState(0)
   const [confirmationModal, setConfirmationModal] = useState<{ title: string; message: string; confirmLabel: string; danger?: boolean; onConfirm: () => void } | null>(null)
+  const [activeTab, setActiveTab] = useState<"dashboard" | "announcements">("dashboard")
+  const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [announcementTitle, setAnnouncementTitle] = useState("")
+  const [announcementMessage, setAnnouncementMessage] = useState("")
+  const [announcementPriority, setAnnouncementPriority] = useState<Announcement["priority"]>("normal")
+  const [announcementExpiry, setAnnouncementExpiry] = useState("")
+  const [announcementFormError, setAnnouncementFormError] = useState("")
+  const [announcementFormSuccess, setAnnouncementFormSuccess] = useState("")
 
   const approvedAdminCount = registeredAdmins.filter((user) => user.status === "approved").length
   const rejectedAdminCount = registeredAdmins.filter((user) => user.status === "rejected").length
@@ -239,6 +256,89 @@ function AdminPdfSecurity() {
       // Ignore unavailable or malformed local activity data.
     }
   }, [])
+
+  const loadAnnouncements = async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/announcements`)
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || "Unable to load announcements.")
+      const parsed = Array.isArray(data.announcements) ? data.announcements : []
+      setAnnouncements(parsed.slice(0, 50))
+      setAnnouncementFormError("")
+    } catch (loadError) {
+      setAnnouncementFormError(loadError instanceof Error ? loadError.message : "Unable to load announcements from the server.")
+    }
+  }
+
+  useEffect(() => {
+    void loadAnnouncements()
+  }, [])
+
+  const saveAnnouncement = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setAnnouncementFormError("")
+    setAnnouncementFormSuccess("")
+    const title = announcementTitle.trim()
+    const message = announcementMessage.trim()
+    if (!title || !message) {
+      setAnnouncementFormError("Enter both an announcement title and message.")
+      return
+    }
+    if (title.length > 100 || message.length > 1000) {
+      setAnnouncementFormError("Title must be 100 characters or fewer and message 1,000 characters or fewer.")
+      return
+    }
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/announcements`, {
+        method: "POST",
+        headers: getAdminHeaders(password, adminEmail, true),
+        body: JSON.stringify({
+          title,
+          message,
+          priority: announcementPriority,
+          expiresAt: announcementExpiry ? new Date(`${announcementExpiry}T23:59:59`).toISOString() : null,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || "Unable to publish announcement.")
+      await loadAnnouncements()
+      setAnnouncementTitle("")
+      setAnnouncementMessage("")
+      setAnnouncementPriority("normal")
+      setAnnouncementExpiry("")
+      setAnnouncementFormSuccess(data.message || "Announcement published successfully.")
+      recordActivity("Announcement published", title)
+    } catch (saveError) {
+      setAnnouncementFormError(saveError instanceof Error ? saveError.message : "Unable to publish announcement.")
+    }
+  }
+
+  const deleteAnnouncement = async (id: string) => {
+    if (adminRole !== "superadmin") {
+      setAnnouncementFormError("Only the Super Admin can delete announcements.")
+      return
+    }
+    const item = announcements.find((announcement) => announcement.id === id)
+    if (!item) return
+    if (!window.confirm(`Delete the announcement "${item.title}" from the live portfolio?`)) return
+    setAnnouncementFormError("")
+    setAnnouncementFormSuccess("")
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/announcements/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: getAdminHeaders(password, adminEmail),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || "Unable to delete announcement.")
+      setAnnouncements((current) => current.filter((announcement) => announcement.id !== id))
+      setAnnouncementFormSuccess(data.message || "Announcement deleted.")
+      recordActivity("Announcement deleted", item.title)
+    } catch (deleteError) {
+      setAnnouncementFormError(deleteError instanceof Error ? deleteError.message : "Unable to delete announcement.")
+    }
+  }
+
+  const visibleAnnouncements = announcements.filter((item) => !item.expiresAt || new Date(item.expiresAt).getTime() >= Date.now())
 
   useEffect(() => {
     if (pendingAdminRequests.length > seenPendingCount) {
@@ -1568,7 +1668,66 @@ function AdminPdfSecurity() {
 
   if (!isLoggedIn) {
     return (
-      <main className="min-h-screen bg-[#020617] px-4 py-12 text-white sm:px-6 lg:px-8">
+      <main className="admin-shell relative min-h-screen bg-[#020617] px-4 py-12 text-white sm:px-6 lg:px-8">
+
+        <style>{`
+          .admin-shell {
+            isolation: isolate;
+            background-image: radial-gradient(ellipse at 12% 0%, rgba(34, 211, 238, .09), transparent 32%), radial-gradient(ellipse at 88% 8%, rgba(139, 92, 246, .08), transparent 28%);
+          }
+          .admin-shell::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            pointer-events: none;
+            opacity: .18;
+            background-image: linear-gradient(rgba(148,163,184,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.06) 1px, transparent 1px);
+            background-size: 36px 36px;
+            mask-image: linear-gradient(to bottom, black, transparent 78%);
+          }
+          .admin-shell section > div,
+          .admin-shell section article,
+          .admin-shell [class*="rounded-2xl"][class*="border"],
+          .admin-shell [class*="rounded-3xl"][class*="border"] {
+            transition: border-color .22s ease, box-shadow .22s ease, background-color .22s ease, transform .22s ease;
+          }
+          .admin-shell [class*="rounded-2xl"][class*="border"]:hover,
+          .admin-shell [class*="rounded-3xl"][class*="border"]:hover {
+            border-color: rgba(103, 232, 249, .24);
+          }
+          .admin-shell button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+          .admin-shell button:focus-visible,
+          .admin-shell input:focus-visible,
+          .admin-shell select:focus-visible,
+          .admin-shell textarea:focus-visible {
+            outline: 2px solid rgba(103, 232, 249, .9);
+            outline-offset: 3px;
+          }
+          .admin-shell input, .admin-shell select, .admin-shell textarea { min-width: 0; }
+          .admin-shell ::-webkit-scrollbar { width: 8px; height: 8px; }
+          .admin-shell ::-webkit-scrollbar-track { background: rgba(15, 23, 42, .7); }
+          .admin-shell ::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, .6); border-radius: 999px; }
+          .admin-shell ::-webkit-scrollbar-thumb:hover { background: rgba(103, 232, 249, .55); }
+          @media (hover: hover) and (pointer: fine) {
+            .admin-shell button:not(:disabled):hover { transform: translateY(-1px); }
+          }
+          @media (max-width: 640px) {
+            .admin-shell { padding-left: 14px !important; padding-right: 14px !important; }
+            .admin-shell h1 { overflow-wrap: anywhere; }
+            .admin-shell [class*="overflow-x-auto"] { overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+            .admin-shell table { min-width: 620px; }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .admin-shell *, .admin-shell *::before, .admin-shell *::after {
+              scroll-behavior: auto !important;
+              animation-duration: .01ms !important;
+              animation-iteration-count: 1 !important;
+              transition-duration: .01ms !important;
+            }
+          }
+        `}</style>
+
         <div className="mx-auto flex min-h-[80vh] w-full max-w-md items-center justify-center">
           <div className="w-full rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
             <div className="mb-8">
@@ -1998,8 +2157,80 @@ function AdminPdfSecurity() {
   }
 
   return (
-    <main className="min-h-screen bg-[#020617] px-4 py-8 text-white sm:px-6 lg:px-8 lg:py-12">
-      <div className="mx-auto w-full max-w-7xl">
+    <main className="admin-shell relative min-h-screen bg-[#020617] px-4 py-8 text-white sm:px-6 lg:px-8 lg:py-12">
+
+        <style>{`
+          .admin-shell {
+            isolation: isolate;
+            background-image: radial-gradient(ellipse at 12% 0%, rgba(34, 211, 238, .09), transparent 32%), radial-gradient(ellipse at 88% 8%, rgba(139, 92, 246, .08), transparent 28%);
+          }
+          .admin-shell::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            pointer-events: none;
+            opacity: .18;
+            background-image: linear-gradient(rgba(148,163,184,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.06) 1px, transparent 1px);
+            background-size: 36px 36px;
+            mask-image: linear-gradient(to bottom, black, transparent 78%);
+          }
+          .admin-shell section > div,
+          .admin-shell section article,
+          .admin-shell [class*="rounded-2xl"][class*="border"],
+          .admin-shell [class*="rounded-3xl"][class*="border"] {
+            transition: border-color .22s ease, box-shadow .22s ease, background-color .22s ease, transform .22s ease;
+          }
+          .admin-shell [class*="rounded-2xl"][class*="border"]:hover,
+          .admin-shell [class*="rounded-3xl"][class*="border"]:hover {
+            border-color: rgba(103, 232, 249, .24);
+          }
+          .admin-shell button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+          .admin-shell button:focus-visible,
+          .admin-shell input:focus-visible,
+          .admin-shell select:focus-visible,
+          .admin-shell textarea:focus-visible {
+            outline: 2px solid rgba(103, 232, 249, .9);
+            outline-offset: 3px;
+          }
+          .admin-shell input, .admin-shell select, .admin-shell textarea { min-width: 0; }
+          .admin-shell ::-webkit-scrollbar { width: 8px; height: 8px; }
+          .admin-shell ::-webkit-scrollbar-track { background: rgba(15, 23, 42, .7); }
+          .admin-shell ::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, .6); border-radius: 999px; }
+          .admin-shell ::-webkit-scrollbar-thumb:hover { background: rgba(103, 232, 249, .55); }
+          @media (hover: hover) and (pointer: fine) {
+            .admin-shell button:not(:disabled):hover { transform: translateY(-1px); }
+          }
+          @media (max-width: 640px) {
+            .admin-shell { padding-left: 14px !important; padding-right: 14px !important; }
+            .admin-shell h1 { overflow-wrap: anywhere; }
+            .admin-shell [class*="overflow-x-auto"] { overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+            .admin-shell table { min-width: 620px; }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .admin-shell *, .admin-shell *::before, .admin-shell *::after {
+              scroll-behavior: auto !important;
+              animation-duration: .01ms !important;
+              animation-iteration-count: 1 !important;
+              transition-duration: .01ms !important;
+            }
+          }
+        `}</style>
+
+      <div className="mx-auto mb-7 w-full max-w-7xl">
+        <nav aria-label="Admin dashboard navigation" className="flex flex-wrap gap-2 rounded-2xl border border-slate-800 bg-slate-900/70 p-2">
+          <button type="button" onClick={() => setActiveTab("dashboard")} aria-current={activeTab === "dashboard" ? "page" : undefined} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${activeTab === "dashboard" ? "bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-950/20" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+            Dashboard
+          </button>
+          <button type="button" onClick={() => setActiveTab("announcements")} aria-current={activeTab === "announcements" ? "page" : undefined} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${activeTab === "announcements" ? "bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-950/20" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><path d="m3 11 18-5-5 17-4-7-9-5Z" strokeLinejoin="round"/><path d="m12 16 5-7" strokeLinecap="round"/></svg>
+            Announcements <span className={`rounded-full px-2 py-0.5 text-[10px] ${activeTab === "announcements" ? "bg-slate-950/15" : "bg-slate-800 text-slate-300"}`}>{visibleAnnouncements.length}</span>
+          </button>
+        </nav>
+      </div>
+
+      <div hidden={activeTab !== "dashboard"} className="mx-auto w-full max-w-7xl">
         <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-400">
@@ -2011,7 +2242,7 @@ function AdminPdfSecurity() {
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
               Upload or replace a PDF, control portfolio visibility, manage passwords and maintain semester SGPA data without editing source code.
             </p>
-            <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-600">Signed in as {adminRole === "superadmin" ? "Super Admin" : "Administrator"} Â· {adminEmail}</p>
+            <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-600">Signed in as {adminRole === "superadmin" ? "Super Admin" : "Administrator"} · {adminEmail}</p>
           </div>
 
           <button
@@ -2022,6 +2253,49 @@ function AdminPdfSecurity() {
             Logout
           </button>
         </div>
+
+        <section aria-label="PDF portfolio summary" className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          <div className="rounded-2xl border border-cyan-400/15 bg-slate-900/65 p-4 shadow-lg shadow-cyan-950/10 sm:p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-xs">PDF slots</p>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">{files.length || PDF_OPTIONS.length}</p>
+            <p className="mt-1 text-[11px] text-slate-500">Configured documents</p>
+          </div>
+          <div className="rounded-2xl border border-emerald-400/15 bg-slate-900/65 p-4 shadow-lg shadow-emerald-950/10 sm:p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-xs">Uploaded</p>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-emerald-300 sm:text-3xl">{files.filter((file) => file.hasFile).length}</p>
+            <p className="mt-1 text-[11px] text-slate-500">PDFs available in admin</p>
+          </div>
+          <div className="rounded-2xl border border-violet-400/15 bg-slate-900/65 p-4 shadow-lg shadow-violet-950/10 sm:p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-xs">Protected</p>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-violet-300 sm:text-3xl">{files.filter((file) => file.hasFile && file.effectiveProtected).length}</p>
+            <p className="mt-1 text-[11px] text-slate-500">Uploaded PDFs protected</p>
+          </div>
+          <div className="rounded-2xl border border-amber-400/15 bg-slate-900/65 p-4 shadow-lg shadow-amber-950/10 sm:p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-xs">Portfolio enabled</p>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-amber-200 sm:text-3xl">{files.filter((file) => file.enabled).length}</p>
+            <p className="mt-1 text-[11px] text-slate-500">Enabled document slots</p>
+          </div>
+        </section>
+
+        <section aria-labelledby="announcement-preview-heading" className="mb-8 overflow-hidden rounded-3xl border border-violet-400/20 bg-gradient-to-br from-violet-500/10 via-slate-900/90 to-cyan-500/5 p-5 shadow-xl shadow-violet-950/10 sm:p-7">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-300/20 bg-violet-400/10 text-violet-200"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5" aria-hidden="true"><path d="m3 11 18-5-5 17-4-7-9-5Z" strokeLinejoin="round"/><path d="m12 16 5-7" strokeLinecap="round"/></svg></div>
+              <div><p className="text-[11px] font-bold uppercase tracking-[0.2em] text-violet-300">Admin communications</p><h2 id="announcement-preview-heading" className="mt-1 text-xl font-bold text-white">Announcements</h2><p className="mt-1 text-sm text-slate-400">A quick preview of notices saved in this browser.</p></div>
+            </div>
+            <button type="button" onClick={() => setActiveTab("announcements")} className="inline-flex w-fit items-center gap-2 rounded-xl border border-violet-300/25 bg-violet-400/10 px-4 py-2.5 text-sm font-bold text-violet-100 transition hover:bg-violet-400/15">Open Announcements <span aria-hidden="true">→</span></button>
+          </div>
+          <div className="mt-5 grid gap-3 lg:grid-cols-3">
+            {visibleAnnouncements.slice(0, 3).length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/35 px-4 py-6 text-sm text-slate-400 lg:col-span-3">No announcements yet. Open Announcements to publish a notice to the portfolio.</div>
+            ) : visibleAnnouncements.slice(0, 3).map((item) => (
+              <article key={item.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                <div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${item.priority === "urgent" ? "border-red-400/30 bg-red-400/10 text-red-300" : item.priority === "important" ? "border-amber-400/30 bg-amber-400/10 text-amber-200" : "border-cyan-400/25 bg-cyan-400/10 text-cyan-200"}`}>{item.priority}</span><time className="text-[10px] text-slate-500">{formatDate(item.createdAt)}</time></div>
+                <h3 className="mt-3 break-words font-bold text-white">{item.title}</h3><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-400">{item.message.length > 150 ? `${item.message.slice(0, 150)}…` : item.message}</p>
+              </article>
+            ))}
+          </div>
+        </section>
 
         {adminRole === "superadmin" && (
           <section className="mb-8 space-y-6">
@@ -2872,6 +3146,41 @@ function AdminPdfSecurity() {
             })}
           </div>
         </section>
+      </div>
+
+      <div hidden={activeTab !== "announcements"} className="mx-auto w-full max-w-7xl space-y-6">
+        <section aria-labelledby="announcements-page-heading" className="overflow-hidden rounded-3xl border border-violet-400/20 bg-gradient-to-br from-violet-500/10 via-slate-900/95 to-cyan-500/5 p-6 shadow-2xl shadow-violet-950/10 sm:p-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.22em] text-violet-300">Communications centre</p><h2 id="announcements-page-heading" className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">Announcements</h2><p className="mt-3 text-sm leading-6 text-slate-400">Create priority-based notices for the portfolio. Published notices are stored on the server and shared with all visitors.</p></div>
+            <div className="flex w-fit items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/5 px-3 py-2 text-xs font-semibold text-emerald-200"><span className="h-2 w-2 rounded-full bg-emerald-300" /> Server publishing enabled</div>
+          </div>
+          <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4 text-sm leading-6 text-emerald-100"><strong className="block">Server publishing</strong>Announcements are published through the protected backend API and stored in MongoDB. Active notices appear on the public portfolio. Only the Super Admin can delete published announcements.</div>
+        </section>
+
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+          <form onSubmit={saveAnnouncement} className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl sm:p-6">
+            <div className="mb-5"><p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300">Compose notice</p><h3 className="mt-2 text-xl font-bold text-white">Create an announcement</h3><p className="mt-1 text-sm text-slate-500">Audience: all portfolio visitors · saved to MongoDB</p></div>
+            <label className="mb-2 block text-sm font-semibold text-slate-200" htmlFor="announcement-title">Title</label>
+            <input id="announcement-title" value={announcementTitle} onChange={(event) => setAnnouncementTitle(event.target.value)} maxLength={100} placeholder="e.g. Scheduled maintenance" className="mb-4 w-full rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400" />
+            <div className="mb-1 flex justify-between gap-3"><label className="text-sm font-semibold text-slate-200" htmlFor="announcement-message">Message</label><span className="text-xs text-slate-600">{announcementMessage.length}/1000</span></div>
+            <textarea id="announcement-message" value={announcementMessage} onChange={(event) => setAnnouncementMessage(event.target.value)} maxLength={1000} rows={5} placeholder="Write a concise message for the admin team…" className="mb-4 w-full resize-y rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div><label className="mb-2 block text-sm font-semibold text-slate-200" htmlFor="announcement-priority">Priority</label><select id="announcement-priority" value={announcementPriority} onChange={(event) => setAnnouncementPriority(event.target.value as Announcement["priority"])} className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm text-white outline-none focus:border-cyan-400"><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select></div>
+              <div><label className="mb-2 block text-sm font-semibold text-slate-200" htmlFor="announcement-expiry">Expiry date <span className="font-normal text-slate-500">(optional)</span></label><input id="announcement-expiry" type="date" value={announcementExpiry} onChange={(event) => setAnnouncementExpiry(event.target.value)} min={new Date().toISOString().slice(0, 10)} className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm text-white outline-none focus:border-cyan-400" /></div>
+            </div>
+            {announcementFormError && <p role="alert" className="mt-4 rounded-xl border border-red-400/20 bg-red-400/5 p-3 text-sm text-red-300">{announcementFormError}</p>}
+            {announcementFormSuccess && <p role="status" className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3 text-sm leading-6 text-emerald-200">{announcementFormSuccess}</p>}
+            <button type="submit" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3.5 text-sm font-bold text-slate-950 transition hover:bg-cyan-300"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>Publish announcement</button>
+            <p className="mt-3 text-center text-xs leading-5 text-slate-500">Published notices are stored in MongoDB and shown to portfolio visitors. Only the Super Admin can delete them.</p>
+          </form>
+
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-300">Notice archive</p><h3 className="mt-2 text-xl font-bold text-white">Saved announcements</h3><p className="mt-1 text-sm text-slate-500">{visibleAnnouncements.length} active on the server</p></div><span className="w-fit rounded-full border border-emerald-400/20 px-3 py-1 text-xs text-emerald-300">MongoDB API</span></div>
+            <div className="mt-5 space-y-3">
+              {visibleAnnouncements.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-700 px-4 py-10 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800 text-slate-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6" aria-hidden="true"><path d="m3 11 18-5-5 17-4-7-9-5Z" strokeLinejoin="round"/></svg></div><p className="mt-3 font-semibold text-slate-200">No announcements yet</p><p className="mt-1 text-sm text-slate-500">Create a notice using the form.</p></div> : visibleAnnouncements.map((item) => <article key={item.id} className="rounded-2xl border border-slate-800 bg-slate-950/55 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${item.priority === "urgent" ? "border-red-400/30 bg-red-400/10 text-red-300" : item.priority === "important" ? "border-amber-400/30 bg-amber-400/10 text-amber-200" : "border-cyan-400/25 bg-cyan-400/10 text-cyan-200"}`}>{item.priority}</span><span className="text-xs text-slate-500">Created {formatDate(item.createdAt)}</span></div>{adminRole === "superadmin" && <button type="button" onClick={() => void deleteAnnouncement(item.id)} className="rounded-lg border border-red-400/20 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-400/10">Delete</button>}</div><h4 className="mt-3 break-words text-base font-bold text-white">{item.title}</h4><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-400">{item.message}</p>{item.expiresAt && <p className="mt-3 text-xs text-slate-500">Expires {formatDate(item.expiresAt)}</p>}</article>)}
+            </div>
+          </div>
+        </div>
       </div>
 
       {academicEdit && (
