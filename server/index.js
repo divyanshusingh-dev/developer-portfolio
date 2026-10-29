@@ -113,12 +113,38 @@ const announcementSchema = new mongoose.Schema(
     priority: { type: String, enum: ["normal", "important", "urgent"], default: "normal" },
     expiresAt: { type: Date, default: null },
     createdBy: { type: String, trim: true, default: "Super Admin" },
+    attachment: {
+      originalName: { type: String, default: "" },
+      mimeType: { type: String, default: "" },
+      sizeBytes: { type: Number, default: 0 },
+      data: { type: Buffer, default: undefined },
+    },
   },
   { timestamps: true }
 );
 announcementSchema.index({ createdAt: -1 });
 const Announcement = mongoose.models.Announcement || mongoose.model("Announcement", announcementSchema);
 
+function serializeAnnouncement(item) {
+  const id = String(item._id || item.id);
+  const hasAttachment = Boolean(item.attachment?.data && item.attachment?.originalName);
+  return {
+    id,
+    title: item.title,
+    message: item.message,
+    priority: item.priority || "normal",
+    createdAt: item.createdAt,
+    expiresAt: item.expiresAt || "",
+    attachment: hasAttachment
+      ? {
+          name: item.attachment.originalName,
+          mimeType: item.attachment.mimeType,
+          sizeBytes: item.attachment.sizeBytes,
+          url: `/api/announcements/${id}/attachment`,
+        }
+      : null,
+  };
+}
 
 // --------------------------------------------------
 // PDF Fixed Slots
@@ -1185,6 +1211,25 @@ const upload = multer({
   },
 });
 
+// Optional announcement attachment upload (separate from protected PDF uploads).
+// Files are stored in MongoDB with the announcement; no local disk path is required.
+const announcementUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024, files: 1 },
+  fileFilter(_req, file, callback) {
+    const allowed = new Set([
+      "application/pdf",
+      "image/png",
+      "image/jpeg",
+      "image/webp",
+    ]);
+    if (!allowed.has(String(file.mimetype || "").toLowerCase())) {
+      return callback(new Error("Announcement attachment must be a PDF, PNG, JPG, or WebP file."));
+    }
+    callback(null, true);
+  },
+});
+
 // --------------------------------------------------
 // Admin Auth
 // --------------------------------------------------
@@ -1276,72 +1321,108 @@ app.get("/api/announcements", async (_req, res) => {
       .limit(50)
       .lean();
 
-    return res.json({
-      announcements: announcements.map((item) => ({
-        id: String(item._id),
-        title: item.title,
-        message: item.message,
-        priority: item.priority,
-        createdAt: item.createdAt,
-        expiresAt: item.expiresAt || "",
-      })),
-    });
+    return res.json({ announcements: announcements.map(serializeAnnouncement) });
   } catch (error) {
     console.error("Public announcements fetch error:", error);
     return res.status(500).json({ message: "Unable to load announcements." });
   }
 });
 
-app.post("/api/admin/announcements", requireAdmin, async (req, res) => {
+// Public attachment endpoint. Only attachments belonging to non-expired announcements are served.
+app.get("/api/announcements/:id/attachment", async (req, res) => {
   try {
-    const title = String(req.body?.title || "").trim();
-    const message = String(req.body?.message || "").trim();
-    const priority = String(req.body?.priority || "normal");
-    const rawExpiry = req.body?.expiresAt;
-
-    if (!title || !message) {
-      return res.status(400).json({ message: "Announcement title and message are required." });
-    }
-    if (title.length > 100 || message.length > 1000) {
-      return res.status(400).json({ message: "Title must be 100 characters or fewer and message 1,000 characters or fewer." });
-    }
-    if (!["normal", "important", "urgent"].includes(priority)) {
-      return res.status(400).json({ message: "Invalid announcement priority." });
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: "Invalid announcement ID." });
     }
 
-    let expiresAt = null;
-    if (rawExpiry) {
-      const parsedExpiry = new Date(rawExpiry);
-      if (Number.isNaN(parsedExpiry.getTime())) {
-        return res.status(400).json({ message: "Invalid announcement expiry date." });
-      }
-      expiresAt = parsedExpiry;
+    const now = new Date();
+    const item = await Announcement.findOne({
+      _id: req.params.id,
+      $or: [{ expiresAt: null }, { expiresAt: { $exists: false } }, { expiresAt: { $gte: now } }],
+    }).select("attachment").lean();
+
+    if (!item?.attachment?.data || !item.attachment.mimeType) {
+      return res.status(404).json({ message: "Announcement attachment not found." });
     }
 
-    const created = await Announcement.create({
-      title,
-      message,
-      priority,
-      expiresAt,
-      createdBy: req.admin?.email || "Administrator",
-    });
+    const allowedMimeTypes = new Set(["application/pdf", "image/png", "image/jpeg", "image/webp"]);
+    const mimeType = allowedMimeTypes.has(item.attachment.mimeType)
+      ? item.attachment.mimeType
+      : "application/octet-stream";
+    const safeName = String(item.attachment.originalName || "attachment")
+      .replace(/[\\r\\n"]/g, "_")
+      .slice(0, 150);
 
-    return res.status(201).json({
-      message: "Announcement published to the portfolio.",
-      announcement: {
-        id: String(created._id),
-        title: created.title,
-        message: created.message,
-        priority: created.priority,
-        createdAt: created.createdAt,
-        expiresAt: created.expiresAt || "",
-      },
-    });
+    res.setHeader("Content-Type", mimeType);
+    res.setHeader("Content-Length", item.attachment.data.length);
+    res.setHeader("Content-Disposition", `inline; filename="${safeName}"`);
+    res.setHeader("Cache-Control", "public, max-age=300");
+    return res.send(item.attachment.data);
   } catch (error) {
-    console.error("Announcement publish error:", error);
-    return res.status(500).json({ message: "Unable to publish announcement." });
+    console.error("Public announcement attachment error:", error);
+    return res.status(500).json({ message: "Unable to load announcement attachment." });
   }
 });
+
+app.post(
+  "/api/admin/announcements",
+  requireAdmin,
+  announcementUpload.single("attachment"),
+  async (req, res) => {
+    try {
+      const title = String(req.body?.title || "").trim();
+      const message = String(req.body?.message || "").trim();
+      const priority = String(req.body?.priority || "normal").toLowerCase();
+      const rawExpiry = req.body?.expiresAt;
+
+      if (!title || !message) {
+        return res.status(400).json({ message: "Announcement title and message are required." });
+      }
+      if (title.length > 100 || message.length > 1000) {
+        return res.status(400).json({ message: "Title must be 100 characters or fewer and message 1,000 characters or fewer." });
+      }
+      if (!["normal", "important", "urgent"].includes(priority)) {
+        return res.status(400).json({ message: "Invalid announcement priority." });
+      }
+
+      let expiresAt = null;
+      if (rawExpiry) {
+        const parsedExpiry = new Date(rawExpiry);
+        if (Number.isNaN(parsedExpiry.getTime())) {
+          return res.status(400).json({ message: "Invalid announcement expiry date." });
+        }
+        expiresAt = parsedExpiry;
+      }
+
+      const file = req.file;
+      const created = await Announcement.create({
+        title,
+        message,
+        priority,
+        expiresAt,
+        createdBy: req.admin?.email || "Administrator",
+        ...(file
+          ? {
+              attachment: {
+                originalName: String(file.originalname || "attachment").replace(/[\\r\\n]/g, "_").slice(0, 150),
+                mimeType: file.mimetype,
+                sizeBytes: file.size,
+                data: file.buffer,
+              },
+            }
+          : {}),
+      });
+
+      return res.status(201).json({
+        message: "Announcement published to the portfolio.",
+        announcement: serializeAnnouncement(created.toObject()),
+      });
+    } catch (error) {
+      console.error("Announcement publish error:", error);
+      return res.status(500).json({ message: "Unable to publish announcement." });
+    }
+  }
+);
 
 app.delete("/api/admin/announcements/:id", requireSuperAdmin, async (req, res) => {
   try {
@@ -1356,6 +1437,7 @@ app.delete("/api/admin/announcements/:id", requireSuperAdmin, async (req, res) =
     return res.status(500).json({ message: "Unable to delete announcement." });
   }
 });
+
 
 // --------------------------------------------------
 // Home
@@ -3837,7 +3919,9 @@ app.use(
       ) {
         return res.status(400).json({
           message:
-            "PDF size limit is 10 MB.",
+            error.field === "attachment"
+              ? "File size limit is 2 MB for announcement attachments."
+              : "PDF size limit is 10 MB.",
         });
       }
 
@@ -3855,6 +3939,17 @@ app.use(
         message:
           error.message,
       });
+    }
+
+    if (
+      error?.message ===
+      "Announcement attachment must be a PDF, PNG, JPG, or WebP file."
+    ) {
+      return res.status(400).json({ message: error.message });
+    }
+
+    if (error?.code === "LIMIT_FILE_SIZE") {
+      return res.status(400).json({ message: "File size limit is 2 MB for announcement attachments." });
     }
 
     console.error(

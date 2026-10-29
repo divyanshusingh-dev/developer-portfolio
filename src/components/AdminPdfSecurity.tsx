@@ -67,6 +67,7 @@ function normalizeAnnouncement(raw: any): Announcement {
     priority: raw?.priority === "urgent" || raw?.priority === "important" ? raw.priority : "normal",
     createdAt: String(raw?.createdAt ?? new Date().toISOString()),
     expiresAt: raw?.expiresAt ? String(raw.expiresAt) : null,
+    attachment: raw?.attachment && typeof raw.attachment.dataUrl === "string" ? { fileName: String(raw.attachment.fileName || "attachment"), mimeType: String(raw.attachment.mimeType || "application/octet-stream"), sizeBytes: Number(raw.attachment.sizeBytes || 0), dataUrl: raw.attachment.dataUrl } : null,
   }
 }
 
@@ -185,6 +186,7 @@ type Announcement = {
   priority: "normal" | "important" | "urgent"
   createdAt: string
   expiresAt: string | null
+  attachment?: { fileName: string; mimeType: string; sizeBytes: number; dataUrl: string } | null
 }
 
 function AdminPdfSecurity() {
@@ -267,6 +269,8 @@ function AdminPdfSecurity() {
   const [announcementMessage, setAnnouncementMessage] = useState("")
   const [announcementPriority, setAnnouncementPriority] = useState<Announcement["priority"]>("normal")
   const [announcementExpiry, setAnnouncementExpiry] = useState("")
+  const [announcementFile, setAnnouncementFile] = useState<File | null>(null)
+  const [priorityMenuOpen, setPriorityMenuOpen] = useState(false)
   const [announcementFormError, setAnnouncementFormError] = useState("")
   const [announcementFormSuccess, setAnnouncementFormSuccess] = useState("")
 
@@ -327,6 +331,19 @@ function AdminPdfSecurity() {
       return
     }
     try {
+      let attachment: { fileName: string; mimeType: string; sizeBytes: number; dataUrl: string } | null = null
+      if (announcementFile) {
+        const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/webp"]
+        if (!allowedTypes.includes(announcementFile.type)) throw new Error("Choose a PDF, PNG, JPG, or WebP file.")
+        if (announcementFile.size > 2 * 1024 * 1024) throw new Error("Attachment must be 2 MB or smaller.")
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Unable to read attachment."))
+          reader.onerror = () => reject(new Error("Unable to read attachment."))
+          reader.readAsDataURL(announcementFile)
+        })
+        attachment = { fileName: announcementFile.name, mimeType: announcementFile.type, sizeBytes: announcementFile.size, dataUrl }
+      }
       const response = await fetch(`${API_BASE}/api/admin/announcements`, {
         method: "POST",
         headers: getAdminHeaders(password, adminEmail, true),
@@ -335,6 +352,7 @@ function AdminPdfSecurity() {
           message,
           priority: announcementPriority,
           expiresAt: announcementExpiry ? new Date(`${announcementExpiry}T23:59:59`).toISOString() : null,
+          attachment,
         }),
       })
       const data = await readApiResponse(response)
@@ -347,6 +365,7 @@ function AdminPdfSecurity() {
       setAnnouncementMessage("")
       setAnnouncementPriority("normal")
       setAnnouncementExpiry("")
+      setAnnouncementFile(null)
       setAnnouncementFormSuccess(data.message || "Announcement published successfully.")
       recordActivity("Announcement published", title)
     } catch (saveError) {
@@ -3193,30 +3212,31 @@ function AdminPdfSecurity() {
         <section aria-labelledby="announcements-page-heading" className="overflow-hidden rounded-3xl border border-violet-400/20 bg-gradient-to-br from-violet-500/10 via-slate-900/95 to-cyan-500/5 p-6 shadow-2xl shadow-violet-950/10 sm:p-8">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.22em] text-violet-300">Communications centre</p><h2 id="announcements-page-heading" className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">Announcements</h2><p className="mt-3 text-sm leading-6 text-slate-400">Create priority-based notices for the portfolio. Published notices are stored on the server and shared with all visitors.</p></div>
-            <div className="flex w-fit items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/5 px-3 py-2 text-xs font-semibold text-emerald-200"><span className="h-2 w-2 rounded-full bg-emerald-300" /> Server publishing enabled</div>
+            <div className="flex w-fit items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/5 px-3 py-2 text-xs font-semibold text-emerald-200"><span className="h-2 w-2 rounded-full bg-emerald-300" /> Live Announcements</div>
           </div>
           <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4 text-sm leading-6 text-emerald-100"><strong className="block">Server publishing</strong>Announcements are published through the protected backend API and stored in MongoDB. Active notices appear on the public portfolio. Only the Super Admin can delete published announcements.</div>
         </section>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
           <form onSubmit={saveAnnouncement} className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl sm:p-6">
-            <div className="mb-5"><p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300">Compose notice</p><h3 className="mt-2 text-xl font-bold text-white">Create an announcement</h3><p className="mt-1 text-sm text-slate-500">Audience: all portfolio visitors · saved to MongoDB</p></div>
+            <div className="mb-5"><p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300">Compose notice</p><h3 className="mt-2 text-xl font-bold text-white">Create an announcement</h3><p className="mt-1 text-sm text-slate-500">Audience : All Portfolio Visitors</p></div>
             <label className="mb-2 block text-sm font-semibold text-slate-200" htmlFor="announcement-title">Title</label>
             <input id="announcement-title" value={announcementTitle} onChange={(event) => setAnnouncementTitle(event.target.value)} maxLength={100} placeholder="e.g. Scheduled maintenance" className="mb-4 w-full rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400" />
             <div className="mb-1 flex justify-between gap-3"><label className="text-sm font-semibold text-slate-200" htmlFor="announcement-message">Message</label><span className="text-xs text-slate-600">{announcementMessage.length}/1000</span></div>
             <textarea id="announcement-message" value={announcementMessage} onChange={(event) => setAnnouncementMessage(event.target.value)} maxLength={1000} rows={5} placeholder="Write a concise message for the admin team…" className="mb-4 w-full resize-y rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400" />
             <div className="grid gap-4 sm:grid-cols-2">
-              <div><label className="mb-2 block text-sm font-semibold text-slate-200" htmlFor="announcement-priority">Priority</label><select id="announcement-priority" value={announcementPriority} onChange={(event) => setAnnouncementPriority(event.target.value as Announcement["priority"])} className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm text-white outline-none focus:border-cyan-400"><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select></div>
+              <div className="relative"><label className="mb-2 block text-sm font-semibold text-slate-200" id="announcement-priority-label">Priority</label><button type="button" aria-labelledby="announcement-priority-label" aria-haspopup="listbox" aria-expanded={priorityMenuOpen} onClick={() => setPriorityMenuOpen((open) => !open)} className="flex w-full items-center justify-between rounded-xl border border-cyan-400/50 bg-slate-950 px-3 py-3 text-left text-sm text-white shadow-[0_0_0_1px_rgba(34,211,238,0.08)] transition hover:border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400/30"><span className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${announcementPriority === "urgent" ? "bg-rose-400" : announcementPriority === "important" ? "bg-amber-400" : "bg-slate-400"}`} />{announcementPriority === "urgent" ? "Urgent" : announcementPriority === "important" ? "Important" : "Normal"}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={`h-4 w-4 text-slate-400 transition-transform ${priorityMenuOpen ? "rotate-180" : ""}`} aria-hidden="true"><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg></button>{priorityMenuOpen && <><button type="button" aria-label="Close priority menu" className="fixed inset-0 z-10 cursor-default" onClick={() => setPriorityMenuOpen(false)} /><div role="listbox" aria-labelledby="announcement-priority-label" className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-slate-700 bg-slate-900 p-1.5 shadow-2xl shadow-black/40 animate-in fade-in slide-in-from-top-1 duration-150">{([{value:"normal",label:"Normal",dot:"bg-slate-400"},{value:"important",label:"Important",dot:"bg-amber-400"},{value:"urgent",label:"Urgent",dot:"bg-rose-400"}] as const).map((option) => <button key={option.value} type="button" role="option" aria-selected={announcementPriority === option.value} onClick={() => { setAnnouncementPriority(option.value); setPriorityMenuOpen(false) }} className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm transition ${announcementPriority === option.value ? "bg-cyan-400/15 text-cyan-100" : "text-slate-200 hover:bg-slate-800 hover:text-white"}`}><span className={`h-2.5 w-2.5 rounded-full ${option.dot}`} />{option.label}{announcementPriority === option.value && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ml-auto h-4 w-4 text-cyan-300" aria-hidden="true"><path d="m5 12 4 4L19 6" strokeLinecap="round" strokeLinejoin="round"/></svg>}</button>)}</div></>}</div>
               <div><label className="mb-2 block text-sm font-semibold text-slate-200" htmlFor="announcement-expiry">Expiry date <span className="font-normal text-slate-500">(optional)</span></label><input id="announcement-expiry" type="date" value={announcementExpiry} onChange={(event) => setAnnouncementExpiry(event.target.value)} min={new Date().toISOString().slice(0, 10)} className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm text-white outline-none focus:border-cyan-400" /></div>
             </div>
+            <div className="mt-4"><label className="mb-2 block text-sm font-semibold text-slate-200" htmlFor="announcement-attachment">Attachment <span className="font-normal text-slate-500">(optional)</span></label><label htmlFor="announcement-attachment" className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-cyan-400/35 bg-slate-950/55 px-4 py-5 text-center transition hover:border-cyan-300 hover:bg-cyan-400/5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="mb-2 h-7 w-7 text-cyan-300" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" strokeLinecap="round" strokeLinejoin="round"/></svg><span className="text-sm font-semibold text-slate-100">{announcementFile ? announcementFile.name : "Choose a file or click to browse"}</span><span className="mt-1 text-xs text-slate-500">PDF, PNG, JPG or WebP · Maximum 2 MB</span><input id="announcement-attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => setAnnouncementFile(event.target.files?.[0] ?? null)} /></label>{announcementFile && <button type="button" onClick={() => setAnnouncementFile(null)} className="mt-2 text-xs font-semibold text-rose-300 transition hover:text-rose-200">Remove attachment</button>}</div>
             {announcementFormError && <p role="alert" className="mt-4 rounded-xl border border-red-400/20 bg-red-400/5 p-3 text-sm text-red-300">{announcementFormError}</p>}
             {announcementFormSuccess && <p role="status" className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3 text-sm leading-6 text-emerald-200">{announcementFormSuccess}</p>}
             <button type="submit" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3.5 text-sm font-bold text-slate-950 transition hover:bg-cyan-300"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>Publish announcement</button>
-            <p className="mt-3 text-center text-xs leading-5 text-slate-500">Published notices are stored in MongoDB and shown to portfolio visitors. Only the Super Admin can delete them.</p>
+            <p className="mt-3 text-center text-xs leading-5 text-slate-500">Only the Super Admin can delete them.</p>
           </form>
 
           <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl sm:p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-300">Notice archive</p><h3 className="mt-2 text-xl font-bold text-white">Saved announcements</h3><p className="mt-1 text-sm text-slate-500">{visibleAnnouncements.length} active on the server</p></div><span className="w-fit rounded-full border border-emerald-400/20 px-3 py-1 text-xs text-emerald-300">MongoDB API</span></div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-300">Notice archive</p><h3 className="mt-2 text-xl font-bold text-white">Saved announcements</h3><p className="mt-1 text-sm text-slate-500">{visibleAnnouncements.length} active on the server</p></div><span className="w-fit rounded-full border border-emerald-400/20 px-3 py-1 text-xs text-emerald-300">Published announcement</span></div>
             <div className="mt-5 space-y-3">
               {visibleAnnouncements.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-700 px-4 py-10 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800 text-slate-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6" aria-hidden="true"><path d="m3 11 18-5-5 17-4-7-9-5Z" strokeLinejoin="round"/></svg></div><p className="mt-3 font-semibold text-slate-200">No announcements yet</p><p className="mt-1 text-sm text-slate-500">Create a notice using the form.</p></div> : visibleAnnouncements.map((item) => <article key={item.id} className="rounded-2xl border border-slate-800 bg-slate-950/55 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${item.priority === "urgent" ? "border-red-400/30 bg-red-400/10 text-red-300" : item.priority === "important" ? "border-amber-400/30 bg-amber-400/10 text-amber-200" : "border-cyan-400/25 bg-cyan-400/10 text-cyan-200"}`}>{item.priority}</span><span className="text-xs text-slate-500">Created {formatDate(item.createdAt)}</span></div>{adminRole === "superadmin" && <button type="button" onClick={() => void deleteAnnouncement(item.id)} className="rounded-lg border border-red-400/20 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-400/10">Delete</button>}</div><h4 className="mt-3 break-words text-base font-bold text-white">{item.title}</h4><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-400">{item.message}</p>{item.expiresAt && <p className="mt-3 text-xs text-slate-500">Expires {formatDate(item.expiresAt)}</p>}</article>)}
             </div>
