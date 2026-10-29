@@ -38,6 +38,38 @@ const API_BASE =
     ? "http://localhost:5000"
     : "https://developer-portfolio-8.onrender.com"
 
+// Read API responses safely. If the server/proxy returns an HTML error page,
+// show a useful message instead of the confusing "Unexpected token '<'" error.
+async function readApiResponse(response: Response): Promise<any> {
+  const responseText = await response.text()
+  if (!responseText.trim()) return {}
+
+  try {
+    return JSON.parse(responseText)
+  } catch {
+    const endpointHint = response.url || "the API endpoint"
+    if (responseText.trimStart().startsWith("<")) {
+      throw new Error(
+        `The server returned an HTML page instead of JSON (${response.status}). Check that the latest backend is deployed and the API route exists: ${endpointHint}`,
+      )
+    }
+    throw new Error(`The server returned an invalid response (${response.status}).`)
+  }
+}
+
+function normalizeAnnouncement(raw: any): Announcement {
+  return {
+    ...raw,
+    // Mongoose usually serializes its document identifier as _id.
+    id: String(raw?.id ?? raw?._id ?? ""),
+    title: String(raw?.title ?? ""),
+    message: String(raw?.message ?? ""),
+    priority: raw?.priority === "urgent" || raw?.priority === "important" ? raw.priority : "normal",
+    createdAt: String(raw?.createdAt ?? new Date().toISOString()),
+    expiresAt: raw?.expiresAt ? String(raw.expiresAt) : null,
+  }
+}
+
 const PDF_OPTIONS = [
   {
     slot: "classX",
@@ -257,16 +289,22 @@ function AdminPdfSecurity() {
     }
   }, [])
 
-  const loadAnnouncements = async () => {
+  const loadAnnouncements = async (): Promise<boolean> => {
     try {
-      const response = await fetch(`${API_BASE}/api/announcements`)
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.message || "Unable to load announcements.")
-      const parsed = Array.isArray(data.announcements) ? data.announcements : []
+      const response = await fetch(`${API_BASE}/api/announcements`, {
+        headers: { Accept: "application/json" },
+      })
+      const data = await readApiResponse(response)
+      if (!response.ok) throw new Error(data.message || `Unable to load announcements (HTTP ${response.status}).`)
+      const parsed = Array.isArray(data.announcements)
+        ? data.announcements.map(normalizeAnnouncement).filter((item: Announcement) => item.id)
+        : []
       setAnnouncements(parsed.slice(0, 50))
       setAnnouncementFormError("")
+      return true
     } catch (loadError) {
       setAnnouncementFormError(loadError instanceof Error ? loadError.message : "Unable to load announcements from the server.")
+      return false
     }
   }
 
@@ -299,9 +337,12 @@ function AdminPdfSecurity() {
           expiresAt: announcementExpiry ? new Date(`${announcementExpiry}T23:59:59`).toISOString() : null,
         }),
       })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.message || "Unable to publish announcement.")
-      await loadAnnouncements()
+      const data = await readApiResponse(response)
+      if (!response.ok) throw new Error(data.message || `Unable to publish announcement (HTTP ${response.status}).`)
+      const refreshSucceeded = await loadAnnouncements()
+      if (!refreshSucceeded) {
+        throw new Error("The server accepted the announcement, but the list could not refresh. Check the API status before publishing again.")
+      }
       setAnnouncementTitle("")
       setAnnouncementMessage("")
       setAnnouncementPriority("normal")
@@ -328,8 +369,8 @@ function AdminPdfSecurity() {
         method: "DELETE",
         headers: getAdminHeaders(password, adminEmail),
       })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.message || "Unable to delete announcement.")
+      const data = await readApiResponse(response)
+      if (!response.ok) throw new Error(data.message || `Unable to delete announcement (HTTP ${response.status}).`)
       setAnnouncements((current) => current.filter((announcement) => announcement.id !== id))
       setAnnouncementFormSuccess(data.message || "Announcement deleted.")
       recordActivity("Announcement deleted", item.title)
