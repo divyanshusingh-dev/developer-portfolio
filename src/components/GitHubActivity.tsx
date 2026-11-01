@@ -235,7 +235,7 @@ function GitHubActivity() {
     elements.forEach((element) => observer.observe(element));
 
     return () => observer.disconnect();
-  }, [loading, error, repos.length]);
+  }, [loading, error, repos.length, selectedLanguage]);
 
   // Fetch public repositories and profile statistics.
   useEffect(() => {
@@ -435,14 +435,12 @@ function GitHubActivity() {
               </span>
             </div>
 
-            <h2
-              id="github-heading"
-              className="max-w-3xl text-4xl font-black leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl"
-            >
-              Code in progress.
+<h2 className="text-5xl font-semibold leading-[1.08] tracking-[-0.055em] text-white sm:text-6xl md:text-7xl">
+              Code in progress
               <br />
-              <span className="gh-gradient-text">
-                Ideas in motion.
+
+              <span className="about-gradient-text">
+                Ideas in motion 
               </span>
             </h2>
 
@@ -454,15 +452,15 @@ function GitHubActivity() {
           </div>
 
           <a
-            href={profileUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="gh-primary-button inline-flex w-fit items-center justify-center gap-2.5 rounded-xl px-5 py-3.5 text-sm font-bold text-white"
-          >
-            <GitHubIcon />
-            Visit my GitHub
-            <ExternalLinkIcon />
-          </a>
+  href={profileUrl}
+  target="_blank"
+  rel="noopener noreferrer"
+  className="inline-flex items-center justify-center gap-2.5 rounded-full border border-slate-600 bg-transparent px-6 py-3.5 text-sm font-semibold text-white transition-all duration-300 hover:border-slate-400 hover:bg-white/5"
+>
+  <GitHubIcon />
+  Visit GitHub Profile
+  <ExternalLinkIcon />
+</a>
         </div>
 
         {/* Profile identity panel */}
@@ -495,10 +493,8 @@ function GitHubActivity() {
                   Developer profile
                 </p>
 
-                <h3 className="break-words text-xl font-bold text-white sm:text-2xl">
-                  {profile?.name || GITHUB_USERNAME}
-                </h3>
-
+               
+<h3 className="mt-2 text-2xl font-medium tracking-tight text-white">{profile?.name || GITHUB_USERNAME}</h3>
                 <a
                   href={profileUrl}
                   target="_blank"
@@ -577,10 +573,9 @@ function GitHubActivity() {
             <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.24em] text-cyan-400 sm:text-xs">
               Selected from public repositories
             </p>
-
-            <h3 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-              The workbench<span className="text-cyan-400">.</span>
-            </h3>
+<h3 className="mt-2 text-2xl font-medium tracking-tight text-white">The workbench</h3>
+            
+            
 
             <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
               Recently updated projects, pulled directly from GitHub.
@@ -746,7 +741,7 @@ function GitHubActivity() {
                       data-reveal
                       onPointerMove={spotlight}
                       onPointerLeave={resetSpotlight}
-                      className="gh-reveal gh-repo-card group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-[#080f21]/85 p-5 sm:p-6"
+                      className="gh-reveal gh-repo-card group relative flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white/[0.08] bg-[#080f21]/85 p-5 sm:p-6 focus-within:outline-none"
                       style={
                         {
                           "--gh-delay": `${index * 85}ms`,
@@ -854,10 +849,8 @@ function GitHubActivity() {
                 Consistency over time
               </p>
 
-              <h3 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
-                Contribution activity<span className="text-purple-400">.</span>
-              </h3>
-
+              
+<h3 className="mt-2 text-3xl font-medium tracking-tight text-white">Contribution activity</h3>
               <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
                 Explore the public contribution calendar on my GitHub profile.
               </p>
@@ -953,10 +946,8 @@ function GitHubActivity() {
               <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.24em] text-cyan-300">
                 Let's build something
               </p>
-
-              <h3 className="text-xl font-extrabold tracking-tight sm:text-2xl">
-                Curious about the code behind the projects?
-              </h3>
+<h3 className="mt-2 text-2xl font-medium tracking-tight text-white">Curious about the code behind the projects?</h3>
+              
 
               <p className="mt-3 text-sm leading-6 text-slate-400">
                 Browse the repositories, explore the implementation, and
@@ -965,14 +956,14 @@ function GitHubActivity() {
             </div>
 
             <a
-              href={repositoriesUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="gh-primary-button inline-flex w-fit shrink-0 items-center gap-2 rounded-xl px-5 py-3.5 text-sm font-bold text-white"
-            >
-              Explore repositories
-              <ExternalLinkIcon />
-            </a>
+  href={repositoriesUrl}
+  target="_blank"
+  rel="noopener noreferrer"
+  className="inline-flex w-fit shrink-0 items-center justify-center gap-2.5 rounded-full border border-slate-600 bg-transparent px-6 py-3.5 text-sm font-semibold text-white transition-all duration-300 hover:border-slate-400 hover:bg-white/5"
+>
+  Explore Repositories
+  <ExternalLinkIcon />
+</a>
           </div>
         </div>
       </div>

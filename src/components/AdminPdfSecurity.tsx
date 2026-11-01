@@ -58,16 +58,25 @@ async function readApiResponse(response: Response): Promise<any> {
 }
 
 function normalizeAnnouncement(raw: any): Announcement {
+  const rawAttachment = raw?.attachment
+  const attachmentUrl = typeof rawAttachment?.url === "string"
+    ? (rawAttachment.url.startsWith("http") ? rawAttachment.url : `${API_BASE}${rawAttachment.url}`)
+    : ""
+
   return {
     ...raw,
-    // Mongoose usually serializes its document identifier as _id.
     id: String(raw?.id ?? raw?._id ?? ""),
     title: String(raw?.title ?? ""),
     message: String(raw?.message ?? ""),
     priority: raw?.priority === "urgent" || raw?.priority === "important" ? raw.priority : "normal",
     createdAt: String(raw?.createdAt ?? new Date().toISOString()),
     expiresAt: raw?.expiresAt ? String(raw.expiresAt) : null,
-    attachment: raw?.attachment && typeof raw.attachment.dataUrl === "string" ? { fileName: String(raw.attachment.fileName || "attachment"), mimeType: String(raw.attachment.mimeType || "application/octet-stream"), sizeBytes: Number(raw.attachment.sizeBytes || 0), dataUrl: raw.attachment.dataUrl } : null,
+    attachment: rawAttachment && attachmentUrl ? {
+      fileName: String(rawAttachment.name || rawAttachment.originalName || "attachment"),
+      mimeType: String(rawAttachment.mimeType || "application/octet-stream"),
+      sizeBytes: Number(rawAttachment.sizeBytes || 0),
+      url: attachmentUrl,
+    } : null,
   }
 }
 
@@ -186,7 +195,7 @@ type Announcement = {
   priority: "normal" | "important" | "urgent"
   createdAt: string
   expiresAt: string | null
-  attachment?: { fileName: string; mimeType: string; sizeBytes: number; dataUrl: string } | null
+  attachment?: { fileName: string; mimeType: string; sizeBytes: number; url: string } | null
 }
 
 function AdminPdfSecurity() {
@@ -331,29 +340,24 @@ function AdminPdfSecurity() {
       return
     }
     try {
-      let attachment: { fileName: string; mimeType: string; sizeBytes: number; dataUrl: string } | null = null
       if (announcementFile) {
         const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/webp"]
         if (!allowedTypes.includes(announcementFile.type)) throw new Error("Choose a PDF, PNG, JPG, or WebP file.")
         if (announcementFile.size > 2 * 1024 * 1024) throw new Error("Attachment must be 2 MB or smaller.")
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Unable to read attachment."))
-          reader.onerror = () => reject(new Error("Unable to read attachment."))
-          reader.readAsDataURL(announcementFile)
-        })
-        attachment = { fileName: announcementFile.name, mimeType: announcementFile.type, sizeBytes: announcementFile.size, dataUrl }
       }
+
+      // Backend expects multipart/form-data with the uploaded file in req.file.
+      const formData = new FormData()
+      formData.append("title", title)
+      formData.append("message", message)
+      formData.append("priority", announcementPriority)
+      formData.append("expiresAt", announcementExpiry ? new Date(`${announcementExpiry}T23:59:59`).toISOString() : "")
+      if (announcementFile) formData.append("attachment", announcementFile)
+
       const response = await fetch(`${API_BASE}/api/admin/announcements`, {
         method: "POST",
-        headers: getAdminHeaders(password, adminEmail, true),
-        body: JSON.stringify({
-          title,
-          message,
-          priority: announcementPriority,
-          expiresAt: announcementExpiry ? new Date(`${announcementExpiry}T23:59:59`).toISOString() : null,
-          attachment,
-        }),
+        headers: getAdminHeaders(password, adminEmail),
+        body: formData,
       })
       const data = await readApiResponse(response)
       if (!response.ok) throw new Error(data.message || `Unable to publish announcement (HTTP ${response.status}).`)
@@ -3238,7 +3242,30 @@ function AdminPdfSecurity() {
           <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl sm:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-300">Notice archive</p><h3 className="mt-2 text-xl font-bold text-white">Saved announcements</h3><p className="mt-1 text-sm text-slate-500">{visibleAnnouncements.length} active on the server</p></div><span className="w-fit rounded-full border border-emerald-400/20 px-3 py-1 text-xs text-emerald-300">Published announcement</span></div>
             <div className="mt-5 space-y-3">
-              {visibleAnnouncements.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-700 px-4 py-10 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800 text-slate-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6" aria-hidden="true"><path d="m3 11 18-5-5 17-4-7-9-5Z" strokeLinejoin="round"/></svg></div><p className="mt-3 font-semibold text-slate-200">No announcements yet</p><p className="mt-1 text-sm text-slate-500">Create a notice using the form.</p></div> : visibleAnnouncements.map((item) => <article key={item.id} className="rounded-2xl border border-slate-800 bg-slate-950/55 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${item.priority === "urgent" ? "border-red-400/30 bg-red-400/10 text-red-300" : item.priority === "important" ? "border-amber-400/30 bg-amber-400/10 text-amber-200" : "border-cyan-400/25 bg-cyan-400/10 text-cyan-200"}`}>{item.priority}</span><span className="text-xs text-slate-500">Created {formatDate(item.createdAt)}</span></div>{adminRole === "superadmin" && <button type="button" onClick={() => void deleteAnnouncement(item.id)} className="rounded-lg border border-red-400/20 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-400/10">Delete</button>}</div><h4 className="mt-3 break-words text-base font-bold text-white">{item.title}</h4><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-400">{item.message}</p>{item.expiresAt && <p className="mt-3 text-xs text-slate-500">Expires {formatDate(item.expiresAt)}</p>}</article>)}
+              {visibleAnnouncements.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-700 px-4 py-10 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800 text-slate-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6" aria-hidden="true"><path d="m3 11 18-5-5 17-4-7-9-5Z" strokeLinejoin="round"/></svg></div><p className="mt-3 font-semibold text-slate-200">No announcements yet</p><p className="mt-1 text-sm text-slate-500">Create a notice using the form.</p></div> : visibleAnnouncements.map((item) => <article key={item.id} className="rounded-2xl border border-slate-800 bg-slate-950/55 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${item.priority === "urgent" ? "border-red-400/30 bg-red-400/10 text-red-300" : item.priority === "important" ? "border-amber-400/30 bg-amber-400/10 text-amber-200" : "border-cyan-400/25 bg-cyan-400/10 text-cyan-200"}`}>{item.priority}</span><span className="text-xs text-slate-500">Created {formatDate(item.createdAt)}</span></div>{adminRole === "superadmin" && <button type="button" onClick={() => void deleteAnnouncement(item.id)} className="rounded-lg border border-red-400/20 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-400/10">Delete</button>}</div><h4 className="mt-3 break-words text-base font-bold text-white">{item.title}</h4><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-400">{item.message}</p>{item.attachment && (
+                <div className="mt-4 rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-all text-sm font-semibold text-white">{item.attachment.fileName}</p>
+                      <p className="mt-1 text-xs text-slate-400">{formatFileSize(item.attachment.sizeBytes)}</p>
+                    </div>
+                    <a
+                      href={item.attachment.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={item.attachment.fileName}
+                      className="inline-flex shrink-0 items-center rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-400/10"
+                    >
+                      {item.attachment.mimeType === "application/pdf" ? "View / Download PDF" : "View / Download"}
+                    </a>
+                  </div>
+                  {item.attachment.mimeType.startsWith("image/") && (
+                    <a href={item.attachment.url} target="_blank" rel="noopener noreferrer" className="mt-3 block">
+                      <img src={item.attachment.url} alt={item.attachment.fileName} className="max-h-64 max-w-full rounded-lg border border-slate-700 object-contain" />
+                    </a>
+                  )}
+                </div>
+              )}{item.expiresAt && <p className="mt-3 text-xs text-slate-500">Expires {formatDate(item.expiresAt)}</p>}</article>)}
             </div>
           </div>
         </div>

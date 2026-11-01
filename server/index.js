@@ -1339,7 +1339,7 @@ app.get("/api/announcements/:id/attachment", async (req, res) => {
     const item = await Announcement.findOne({
       _id: req.params.id,
       $or: [{ expiresAt: null }, { expiresAt: { $exists: false } }, { expiresAt: { $gte: now } }],
-    }).select("attachment").lean();
+    }).select("attachment");
 
     if (!item?.attachment?.data || !item.attachment.mimeType) {
       return res.status(404).json({ message: "Announcement attachment not found." });
@@ -1353,11 +1353,35 @@ app.get("/api/announcements/:id/attachment", async (req, res) => {
       .replace(/[\\r\\n"]/g, "_")
       .slice(0, 150);
 
+    // Mongoose may expose binary data as a Buffer or BSON Binary depending on
+    // the document/query representation. Normalize it before sending the file.
+    const storedData = item.attachment.data;
+    let fileBuffer;
+
+    if (Buffer.isBuffer(storedData)) {
+      fileBuffer = storedData;
+    } else if (storedData && Buffer.isBuffer(storedData.buffer)) {
+      // BSON Binary instance
+      fileBuffer = storedData.buffer;
+    } else if (storedData && storedData._bsontype === "Binary" && typeof storedData.value === "function") {
+      fileBuffer = Buffer.from(storedData.value(true));
+    } else if (storedData instanceof Uint8Array) {
+      fileBuffer = Buffer.from(storedData);
+    } else {
+      return res.status(500).json({ message: "Stored attachment data is not in a readable binary format." });
+    }
+
+    if (!fileBuffer.length) {
+      return res.status(404).json({ message: "Attachment file is empty." });
+    }
+
+    res.status(200);
     res.setHeader("Content-Type", mimeType);
-    res.setHeader("Content-Length", item.attachment.data.length);
+    res.setHeader("Content-Length", String(fileBuffer.length));
     res.setHeader("Content-Disposition", `inline; filename="${safeName}"`);
-    res.setHeader("Cache-Control", "public, max-age=300");
-    return res.send(item.attachment.data);
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cache-Control", "no-store");
+    return res.end(fileBuffer);
   } catch (error) {
     console.error("Public announcement attachment error:", error);
     return res.status(500).json({ message: "Unable to load announcement attachment." });
