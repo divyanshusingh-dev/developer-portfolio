@@ -71,6 +71,26 @@ function normalizeAnnouncement(raw: any): Announcement {
     priority: raw?.priority === "urgent" || raw?.priority === "important" ? raw.priority : "normal",
     createdAt: String(raw?.createdAt ?? new Date().toISOString()),
     expiresAt: raw?.expiresAt ? String(raw.expiresAt) : null,
+    // Supports the common API shapes used for creator metadata. The backend
+    // must populate these fields from the authenticated admin, never the form.
+    createdById: String(
+      raw?.createdById ?? raw?.createdBy?._id ?? raw?.createdBy?.id ?? raw?.postedBy?._id ?? "",
+    ),
+    createdByName: String(
+      raw?.createdByName ||
+      raw?.postedByName ||
+      raw?.createdBy?.name ||
+      raw?.postedBy?.name ||
+      raw?.adminName ||
+      (typeof raw?.createdBy === "string" && !raw.createdBy.includes("@") ? raw.createdBy : "") ||
+      "Unknown admin",
+    ),
+    createdByEmail: String(
+      raw?.createdByEmail ?? raw?.postedByEmail ?? raw?.createdBy?.email ?? raw?.postedBy?.email ?? raw?.adminEmail ?? "",
+    ).toLowerCase(),
+    createdByRole: String(
+      raw?.createdByRole ?? raw?.postedByRole ?? raw?.createdBy?.role ?? raw?.postedBy?.role ?? "admin",
+    ),
     attachment: rawAttachment && attachmentUrl ? {
       fileName: String(rawAttachment.name || rawAttachment.originalName || "attachment"),
       mimeType: String(rawAttachment.mimeType || "application/octet-stream"),
@@ -195,6 +215,10 @@ type Announcement = {
   priority: "normal" | "important" | "urgent"
   createdAt: string
   expiresAt: string | null
+  createdById?: string
+  createdByName: string
+  createdByEmail: string
+  createdByRole: string
   attachment?: { fileName: string; mimeType: string; sizeBytes: number; url: string } | null
 }
 
@@ -377,13 +401,22 @@ function AdminPdfSecurity() {
     }
   }
 
+  const canDeleteAnnouncement = (item: Announcement) => {
+    if (adminRole === "superadmin") return true
+    return Boolean(
+      adminRole === "admin" &&
+      item.createdByEmail &&
+      item.createdByEmail === adminEmail.trim().toLowerCase(),
+    )
+  }
+
   const deleteAnnouncement = async (id: string) => {
-    if (adminRole !== "superadmin") {
-      setAnnouncementFormError("Only the Super Admin can delete announcements.")
-      return
-    }
     const item = announcements.find((announcement) => announcement.id === id)
     if (!item) return
+    if (!canDeleteAnnouncement(item)) {
+      setAnnouncementFormError("You can delete only announcements published by your own admin account.")
+      return
+    }
     if (!window.confirm(`Delete the announcement "${item.title}" from the live portfolio?`)) return
     setAnnouncementFormError("")
     setAnnouncementFormSuccess("")
@@ -3218,7 +3251,7 @@ function AdminPdfSecurity() {
             <div className="max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.22em] text-violet-300">Communications centre</p><h2 id="announcements-page-heading" className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">Announcements</h2><p className="mt-3 text-sm leading-6 text-slate-400">Create priority-based notices for the portfolio. Published notices are stored on the server and shared with all visitors.</p></div>
             <div className="flex w-fit items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/5 px-3 py-2 text-xs font-semibold text-emerald-200"><span className="h-2 w-2 rounded-full bg-emerald-300" /> Live Announcements</div>
           </div>
-          <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4 text-sm leading-6 text-emerald-100"><strong className="block">Server publishing</strong>Announcements are published through the protected backend API and stored in MongoDB. Active notices appear on the public portfolio. Only the Super Admin can delete published announcements.</div>
+          <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4 text-sm leading-6 text-emerald-100"><strong className="block">Server publishing</strong>Announcements are published through the protected backend API and stored in MongoDB. Active notices appear on the public portfolio. Super Admins can delete any announcement. Normal admins can delete only their own announcements.</div>
         </section>
 
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
@@ -3236,13 +3269,13 @@ function AdminPdfSecurity() {
             {announcementFormError && <p role="alert" className="mt-4 rounded-xl border border-red-400/20 bg-red-400/5 p-3 text-sm text-red-300">{announcementFormError}</p>}
             {announcementFormSuccess && <p role="status" className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3 text-sm leading-6 text-emerald-200">{announcementFormSuccess}</p>}
             <button type="submit" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3.5 text-sm font-bold text-slate-950 transition hover:bg-cyan-300"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>Publish announcement</button>
-            <p className="mt-3 text-center text-xs leading-5 text-slate-500">Only the Super Admin can delete them.</p>
+            <p className="mt-3 text-center text-xs leading-5 text-slate-500">Super Admin: delete any notice · Admin: delete your own notices only.</p>
           </form>
 
           <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl sm:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-300">Notice archive</p><h3 className="mt-2 text-xl font-bold text-white">Saved announcements</h3><p className="mt-1 text-sm text-slate-500">{visibleAnnouncements.length} active on the server</p></div><span className="w-fit rounded-full border border-emerald-400/20 px-3 py-1 text-xs text-emerald-300">Published announcement</span></div>
             <div className="mt-5 space-y-3">
-              {visibleAnnouncements.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-700 px-4 py-10 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800 text-slate-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6" aria-hidden="true"><path d="m3 11 18-5-5 17-4-7-9-5Z" strokeLinejoin="round"/></svg></div><p className="mt-3 font-semibold text-slate-200">No announcements yet</p><p className="mt-1 text-sm text-slate-500">Create a notice using the form.</p></div> : visibleAnnouncements.map((item) => <article key={item.id} className="rounded-2xl border border-slate-800 bg-slate-950/55 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${item.priority === "urgent" ? "border-red-400/30 bg-red-400/10 text-red-300" : item.priority === "important" ? "border-amber-400/30 bg-amber-400/10 text-amber-200" : "border-cyan-400/25 bg-cyan-400/10 text-cyan-200"}`}>{item.priority}</span><span className="text-xs text-slate-500">Created {formatDate(item.createdAt)}</span></div>{adminRole === "superadmin" && <button type="button" onClick={() => void deleteAnnouncement(item.id)} className="rounded-lg border border-red-400/20 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-400/10">Delete</button>}</div><h4 className="mt-3 break-words text-base font-bold text-white">{item.title}</h4><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-400">{item.message}</p>{item.attachment && (
+              {visibleAnnouncements.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-700 px-4 py-10 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800 text-slate-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6" aria-hidden="true"><path d="m3 11 18-5-5 17-4-7-9-5Z" strokeLinejoin="round"/></svg></div><p className="mt-3 font-semibold text-slate-200">No announcements yet</p><p className="mt-1 text-sm text-slate-500">Create a notice using the form.</p></div> : visibleAnnouncements.map((item) => <article key={item.id} className="rounded-2xl border border-slate-800 bg-slate-950/55 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${item.priority === "urgent" ? "border-red-400/30 bg-red-400/10 text-red-300" : item.priority === "important" ? "border-amber-400/30 bg-amber-400/10 text-amber-200" : "border-cyan-400/25 bg-cyan-400/10 text-cyan-200"}`}>{item.priority}</span><span className="text-xs text-slate-500">Created {formatDate(item.createdAt)}</span></div>{canDeleteAnnouncement(item) && <button type="button" onClick={() => void deleteAnnouncement(item.id)} className="rounded-lg border border-red-400/20 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-400/10">Delete</button>}</div><div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2"><span className="text-xs text-slate-500">Posted by</span><span className="text-xs font-semibold text-slate-200">{item.createdByName}</span><span className="rounded-full border border-violet-400/20 bg-violet-400/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-200">{item.createdByRole === "superadmin" ? "Super Admin" : "Admin"}</span>{item.createdByEmail && <span className="text-xs text-slate-500">{item.createdByEmail}</span>}</div><h4 className="mt-3 break-words text-base font-bold text-white">{item.title}</h4><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-400">{item.message}</p>{item.attachment && (
                 <div className="mt-4 rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">

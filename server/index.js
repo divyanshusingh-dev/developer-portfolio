@@ -112,7 +112,12 @@ const announcementSchema = new mongoose.Schema(
     message: { type: String, required: true, trim: true, maxlength: 1000 },
     priority: { type: String, enum: ["normal", "important", "urgent"], default: "normal" },
     expiresAt: { type: Date, default: null },
+    // Legacy field retained for compatibility with existing announcement records.
     createdBy: { type: String, trim: true, default: "Super Admin" },
+    createdByName: { type: String, trim: true, default: "Unknown admin" },
+    createdByEmail: { type: String, trim: true, lowercase: true, default: "" },
+    createdByRole: { type: String, enum: ["superadmin", "admin"], default: "admin" },
+    createdById: { type: String, trim: true, default: "" },
     attachment: {
       originalName: { type: String, default: "" },
       mimeType: { type: String, default: "" },
@@ -135,6 +140,14 @@ function serializeAnnouncement(item) {
     priority: item.priority || "normal",
     createdAt: item.createdAt,
     expiresAt: item.expiresAt || "",
+    // Fall back to the legacy createdBy value for announcements published before
+    // creator metadata was added. Older records cannot always identify a name.
+    createdByName: item.createdByName && item.createdByName !== "Unknown admin"
+      ? item.createdByName
+      : (item.createdBy && !String(item.createdBy).includes("@") ? String(item.createdBy) : "Unknown admin"),
+    createdByEmail: item.createdByEmail || (String(item.createdBy || "").includes("@") ? normalizeEmail(item.createdBy) : ""),
+    createdByRole: item.createdByRole || "admin",
+    createdById: item.createdById || "",
     attachment: hasAttachment
       ? {
           name: item.attachment.originalName,
@@ -675,6 +688,7 @@ async function authenticateAdmin(email, password) {
     ? {
         valid: true,
         role: "admin",
+        id: String(admin._id),
         email: admin.email,
         name: admin.name,
       }
@@ -1255,7 +1269,8 @@ async function requireAdmin(req, res, next) {
         });
       }
 
-      req.admin = { role: "superadmin", email: (await getAdminCredential()).email };
+      const credential = await getAdminCredential();
+      req.admin = { valid: true, role: "superadmin", email: credential.email, name: "Super Admin" };
       return next();
     }
 
@@ -1321,7 +1336,33 @@ app.get("/api/announcements", async (_req, res) => {
       .limit(50)
       .lean();
 
-    return res.json({ announcements: announcements.map(serializeAnnouncement) });
+    const serializedAnnouncements = await Promise.all(
+      announcements.map(async (item) => {
+        const serialized = serializeAnnouncement(item);
+
+        // Recover names for older records that stored only the creator email.
+        if (serialized.createdByName === "Unknown admin" && serialized.createdByEmail) {
+          try {
+            const primaryCredential = await getAdminCredential();
+            if (normalizeEmail(primaryCredential.email) === serialized.createdByEmail) {
+              serialized.createdByName = "Super Admin";
+              serialized.createdByRole = "superadmin";
+            } else {
+              const owner = await AdminUser.findOne({ email: serialized.createdByEmail })
+                .select("name")
+                .lean();
+              if (owner?.name) serialized.createdByName = owner.name;
+            }
+          } catch (creatorLookupError) {
+            console.warn("Could not resolve legacy announcement creator:", creatorLookupError.message);
+          }
+        }
+
+        return serialized;
+      })
+    );
+
+    return res.json({ announcements: serializedAnnouncements });
   } catch (error) {
     console.error("Public announcements fetch error:", error);
     return res.status(500).json({ message: "Unable to load announcements." });
@@ -1424,7 +1465,12 @@ app.post(
         message,
         priority,
         expiresAt,
+        // Creator information is taken only from the backend-authenticated admin.
         createdBy: req.admin?.email || "Administrator",
+        createdByName: String(req.admin?.name || (req.admin?.role === "superadmin" ? "Super Admin" : "Administrator")),
+        createdByEmail: normalizeEmail(req.admin?.email || ""),
+        createdByRole: req.admin?.role === "superadmin" ? "superadmin" : "admin",
+        createdById: String(req.admin?.id || req.admin?._id || ""),
         ...(file
           ? {
               attachment: {
@@ -1448,13 +1494,33 @@ app.post(
   }
 );
 
-app.delete("/api/admin/announcements/:id", requireSuperAdmin, async (req, res) => {
+app.delete("/api/admin/announcements/:id", requireAdmin, async (req, res) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
       return res.status(400).json({ message: "Invalid announcement ID." });
     }
-    const deleted = await Announcement.findByIdAndDelete(req.params.id);
-    if (!deleted) return res.status(404).json({ message: "Announcement not found." });
+
+    const announcement = await Announcement.findById(req.params.id);
+    if (!announcement) {
+      return res.status(404).json({ message: "Announcement not found." });
+    }
+
+    const isSuperAdmin = req.admin?.role === "superadmin";
+    const currentAdminEmail = normalizeEmail(req.admin?.email || "");
+    const ownerEmail = normalizeEmail(
+      announcement.createdByEmail ||
+      (String(announcement.createdBy || "").includes("@") ? announcement.createdBy : "")
+    );
+
+    // Super Admin may delete any notice. A regular admin may delete only
+    // notices whose stored creator email matches their authenticated account.
+    if (!isSuperAdmin && (!currentAdminEmail || !ownerEmail || currentAdminEmail !== ownerEmail)) {
+      return res.status(403).json({
+        message: "You can delete only announcements published by your own admin account.",
+      });
+    }
+
+    await Announcement.deleteOne({ _id: announcement._id });
     return res.json({ message: "Announcement deleted from the portfolio." });
   } catch (error) {
     console.error("Announcement delete error:", error);
