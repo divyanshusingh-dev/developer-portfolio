@@ -435,7 +435,7 @@ function GitHubActivity() {
               </span>
             </div>
 
-<h2 className="text-5xl font-semibold leading-[1.08] tracking-[-0.055em] text-white sm:text-6xl md:text-7xl">
+<h2 className="text-4xl font-semibold leading-[1.08] tracking-[-0.055em] text-white sm:text-5xl md:text-6xl">
               Code in progress
               <br />
 
@@ -472,7 +472,7 @@ function GitHubActivity() {
         >
           <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 items-center gap-4 sm:gap-5">
-              <div className="gh-avatar-frame shrink-0">
+              <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.025] sm:h-24 sm:w-24">
                 {profile?.avatar_url ? (
                   <img
                     src={profile.avatar_url}
@@ -553,7 +553,7 @@ function GitHubActivity() {
                 </span>
               </div>
 
-              <p className="text-3xl font-black tracking-tight text-white sm:text-4xl">
+              <p className="text-2xl tracking-tight text-white sm:text-3xl">
                 {stat.value}
               </p>
 
