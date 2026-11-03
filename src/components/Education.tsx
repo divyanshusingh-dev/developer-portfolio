@@ -1,3 +1,4 @@
+
 import { useEffect, useMemo, useState } from "react"
 
 type Semester = {
@@ -24,11 +25,21 @@ type EducationResponse = {
   message?: string
 }
 
+type PdfStatus = {
+  enabled?: boolean
+  available?: boolean
+  hasFile?: boolean
+  protected?: boolean
+  message?: string
+}
+
 const API_BASE =
   window.location.hostname === "localhost" ||
   window.location.hostname === "127.0.0.1"
     ? "http://localhost:5000"
     : "https://developer-portfolio-8.onrender.com"
+
+const DEGREE_FILE = "degree-certificate.pdf"
 
 const fallbackSemesters: Semester[] = [
   {
@@ -96,10 +107,20 @@ function Education() {
   const [overallCgpa, setOverallCgpa] = useState<number | null>(
     fallbackCgpa
   )
-  const [isLoading, setIsLoading] = useState(true)
-  const [class10Percentage, setClass10Percentage] = useState<number | null>(70.4)
-  const [class12Percentage, setClass12Percentage] = useState<number | null>(60.4)
 
+  const [isLoading, setIsLoading] = useState(true)
+
+  const [class10Percentage, setClass10Percentage] =
+    useState<number | null>(70.4)
+
+  const [class12Percentage, setClass12Percentage] =
+    useState<number | null>(60.4)
+
+  // Degree certificate availability
+  const [degreeAvailable, setDegreeAvailable] = useState(false)
+  const [degreeLoading, setDegreeLoading] = useState(true)
+
+  // PDF password modal
   const [downloadFile, setDownloadFile] = useState<string | null>(null)
   const [downloadName, setDownloadName] = useState("")
   const [downloadPassword, setDownloadPassword] = useState("")
@@ -108,6 +129,7 @@ function Education() {
   const [error, setError] = useState("")
   const [isDownloading, setIsDownloading] = useState(false)
 
+  // Load education information
   useEffect(() => {
     const loadEducation = async () => {
       try {
@@ -124,11 +146,10 @@ function Education() {
 
         const data = (await response.json()) as EducationResponse
 
-        // Prefer explicit API fields; support classMarksheets for compatibility
-        // with deployments that return the per-slot percentage array.
         const class10FromList = data.classMarksheets?.find(
           (item) => item.slot === "classX"
         )?.percentage
+
         const class12FromList = data.classMarksheets?.find(
           (item) => item.slot === "classXII"
         )?.percentage
@@ -136,6 +157,7 @@ function Education() {
         setClass10Percentage(
           data.class10Percentage ?? class10FromList ?? 70.4
         )
+
         setClass12Percentage(
           data.class12Percentage ?? class12FromList ?? 60.4
         )
@@ -150,9 +172,7 @@ function Education() {
         const mergedSemesters = fallbackSemesters.map((fallback) => {
           const server = serverMap.get(fallback.slot)
 
-          if (!server) {
-            return fallback
-          }
+          if (!server) return fallback
 
           return {
             ...fallback,
@@ -170,10 +190,8 @@ function Education() {
 
         setOverallCgpa(
           enteredSgpas.length > 0
-            ? enteredSgpas.reduce(
-                (sum, value) => sum + value,
-                0
-              ) / enteredSgpas.length
+            ? enteredSgpas.reduce((sum, value) => sum + value, 0) /
+                enteredSgpas.length
             : fallbackCgpa
         )
 
@@ -183,13 +201,58 @@ function Education() {
         setOverallCgpa(fallbackCgpa)
         setClass10Percentage(70.4)
         setClass12Percentage(60.4)
-        setError("")
       } finally {
         setIsLoading(false)
       }
     }
 
     void loadEducation()
+  }, [])
+
+  // Automatically check degree certificate status
+  useEffect(() => {
+    let cancelled = false
+
+    const checkDegreeStatus = async () => {
+      try {
+        setDegreeLoading(true)
+
+        const response = await fetch(
+          `${API_BASE}/api/protected-pdf/status/${encodeURIComponent(
+            DEGREE_FILE
+          )}`,
+          { cache: "no-store" }
+        )
+
+        if (!response.ok) {
+          throw new Error("Degree certificate not available")
+        }
+
+        const data = (await response.json()) as PdfStatus
+
+        if (!cancelled) {
+          setDegreeAvailable(
+            data.enabled !== false &&
+              data.available !== false &&
+              data.hasFile !== false
+          )
+        }
+      } catch {
+        if (!cancelled) {
+          setDegreeAvailable(false)
+        }
+      } finally {
+        if (!cancelled) {
+          setDegreeLoading(false)
+        }
+      }
+    }
+
+    void checkDegreeStatus()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const semesterMap = useMemo(
@@ -203,6 +266,7 @@ function Education() {
     [semesters]
   )
 
+  // Check PDF availability before downloading
   const requestDownload = async (
     fileName: string,
     displayName: string
@@ -226,9 +290,11 @@ function Education() {
       }
 
       if (data.enabled === false) {
-        throw new Error(
-          "This document is currently disabled."
-        )
+        throw new Error("This document is currently disabled.")
+      }
+
+      if (data.available === false || data.hasFile === false) {
+        throw new Error("This document is currently unavailable.")
       }
 
       setDownloadFile(fileName)
@@ -251,6 +317,7 @@ function Education() {
     }
   }
 
+  // Protected PDF download
   const downloadPdf = async (
     fileName: string,
     displayName: string,
@@ -279,8 +346,7 @@ function Education() {
         const data = await response.json()
 
         throw new Error(
-          data.message ||
-            `Unable to download ${displayName}.`
+          data.message || `Unable to download ${displayName}.`
         )
       }
 
@@ -317,6 +383,15 @@ function Education() {
     }
   }
 
+  const closePasswordModal = () => {
+    if (isDownloading) return
+
+    setShowPasswordModal(false)
+    setDownloadFile(null)
+    setDownloadPassword("")
+    setPasswordError("")
+  }
+
   const semesterSlots = [
     "firstSemester",
     "secondSemester",
@@ -326,12 +401,17 @@ function Education() {
     "sixthSemester",
   ]
 
+  const completedSemesters = semesters.filter(
+    (semester) => semester.sgpa !== null
+  ).length
+
   return (
     <section
       id="education"
       className="border-t border-slate-800 bg-slate-950 px-6 py-20"
     >
       <div className="mx-auto max-w-7xl">
+
         {/* Section Heading */}
         <div className="mb-12">
           <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-cyan-400">
@@ -348,14 +428,19 @@ function Education() {
         </div>
 
         {error && (
-          <div className="mb-6 rounded-2xl border border-red-400/20 bg-red-400/5 px-5 py-4 text-sm text-red-300">
+          <div
+            role="alert"
+            className="mb-6 rounded-2xl border border-red-400/20 bg-red-400/5 px-5 py-4 text-sm text-red-300"
+          >
             {error}
           </div>
         )}
 
         <div className="space-y-6">
+
           {/* BCA */}
           <div className="group rounded-2xl border border-slate-800 bg-slate-900/70 p-6 transition-all duration-300 hover:border-cyan-400/20 hover:bg-slate-900 sm:p-7">
+
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-400">
@@ -382,7 +467,6 @@ function Education() {
               </div>
             </div>
 
-            {/* Divider */}
             <div className="my-6 h-px bg-slate-800" />
 
             {/* Semester Performance */}
@@ -392,6 +476,7 @@ function Education() {
               </p>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+
                 {semesterSlots.map((slot) => {
                   const semester =
                     semesterMap.get(slot) ||
@@ -399,13 +484,10 @@ function Education() {
                       (item) => item.slot === slot
                     )!
 
-                  const hasSgpa =
-                    semester.sgpa !== null &&
-                    semester.sgpa !== undefined
+                  const hasSgpa = semester.sgpa !== null
 
                   const canDownload = Boolean(
-                    semester.available &&
-                      semester.hasFile
+                    semester.available && semester.hasFile
                   )
 
                   return (
@@ -429,17 +511,13 @@ function Education() {
                               : "border-slate-700 bg-slate-900 text-slate-500"
                           }`}
                         >
-                          {canDownload
-                            ? "Available"
-                            : "Pending"}
+                          {canDownload ? "Available" : "Pending"}
                         </span>
                       </div>
 
                       <p
                         className={`mt-4 text-2xl font-bold ${
-                          hasSgpa
-                            ? "text-white"
-                            : "text-slate-600"
+                          hasSgpa ? "text-white" : "text-slate-600"
                         }`}
                       >
                         {hasSgpa
@@ -510,8 +588,122 @@ function Education() {
             )}
           </div>
 
+          {/* DEGREE CERTIFICATE - NEW */}
+          <div className="group relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70 p-6 transition-all duration-300 hover:border-cyan-400/30 hover:bg-slate-900 sm:p-7">
+
+            <div className="pointer-events-none absolute -right-12 -top-12 h-40 w-40 rounded-full bg-cyan-400/5 blur-3xl" />
+
+            <div className="relative flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+
+              <div className="min-w-0 flex-1">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-400">
+                  Academic Achievement
+                </p>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/5">
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="25"
+                      height="25"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.6"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      className="text-cyan-400"
+                    >
+                      <path d="M22 10v6M2 10l10-5 10 5-10 5-10-5Z" />
+                      <path d="M6 12v5c3 3 9 3 12 0v-5" />
+                    </svg>
+                  </div>
+
+                  <div>
+                    <h3 className="text-xl font-bold text-white sm:text-2xl">
+                      Degree Certificate
+                    </h3>
+
+                    <p className="mt-1 text-sm text-slate-400">
+                      Bachelor of Computer Applications (BCA)
+                    </p>
+                  </div>
+                </div>
+
+                <p className="mt-4 text-sm leading-6 text-slate-500">
+                  Official degree certificate issued by I. K. Gujral Punjab Technical University.
+                </p>
+              </div>
+
+              <div className="flex flex-col items-start gap-3 sm:items-end">
+                <span className="rounded-full border border-slate-700 px-4 py-2 text-xs font-medium text-slate-300">
+                  2027
+                </span>
+
+                <span
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                    degreeAvailable
+                      ? "border-emerald-400/20 bg-emerald-400/5 text-emerald-300"
+                      : "border-amber-400/20 bg-amber-400/5 text-amber-300"
+                  }`}
+                >
+                  {degreeLoading
+                    ? "Checking..."
+                    : degreeAvailable
+                      ? "Available"
+                      : "Pending"}
+                </span>
+              </div>
+            </div>
+
+            <div className="relative mt-6 border-t border-slate-800 pt-5">
+
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    Official Degree Document
+                  </p>
+
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    {degreeLoading
+                      ? "Checking document availability..."
+                      : degreeAvailable
+                        ? "Your degree certificate is ready to download."
+                        : "Degree certificate will be uploaded after completion of the final year."}
+                  </p>
+                </div>
+
+                {degreeAvailable ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void requestDownload(
+                        DEGREE_FILE,
+                        "BCA Degree Certificate"
+                      )
+                    }
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border border-cyan-400/40 bg-cyan-400/5 px-5 py-3 text-xs font-semibold text-cyan-400 transition hover:bg-cyan-400 hover:text-slate-950 sm:w-auto sm:text-sm"
+                  >
+                    Download Degree Certificate
+                    <span>↓</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled
+                    className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-slate-800 bg-slate-950 px-5 py-3 text-xs font-semibold text-slate-500 sm:w-auto sm:text-sm"
+                  >
+                    Degree Certificate Pending
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+
           {/* Class XII */}
           <div className="group rounded-2xl border border-slate-800 bg-slate-900/70 p-6 transition-all duration-300 hover:border-cyan-400/20 hover:bg-slate-900 sm:p-7">
+
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-400">
@@ -575,6 +767,7 @@ function Education() {
 
           {/* Class X */}
           <div className="group rounded-2xl border border-slate-800 bg-slate-900/70 p-6 transition-all duration-300 hover:border-cyan-400/20 hover:bg-slate-900 sm:p-7">
+
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-400">
@@ -639,6 +832,7 @@ function Education() {
 
         {/* Bottom Highlight */}
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
+
           <div className="rounded-xl border border-slate-800 bg-slate-900/40 px-5 py-4">
             <p className="text-xs uppercase tracking-wider text-slate-500">
               Current CGPA
@@ -657,7 +851,7 @@ function Education() {
             </p>
 
             <p className="mt-1 text-sm font-semibold text-white">
-              3 Semesters
+              {completedSemesters} Semesters
             </p>
           </div>
 
@@ -670,20 +864,37 @@ function Education() {
               Computer Applications
             </p>
           </div>
+
         </div>
       </div>
 
       {/* PDF PASSWORD MODAL */}
       {showPasswordModal && downloadFile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              closePasswordModal()
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="pdf-modal-title"
+            className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900 p-6 shadow-2xl"
+          >
+
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
                   Protected Document
                 </p>
 
-                <h2 className="mt-2 text-xl font-bold text-white">
+                <h2
+                  id="pdf-modal-title"
+                  className="mt-2 text-xl font-bold text-white"
+                >
                   Enter PDF password
                 </h2>
 
@@ -694,13 +905,9 @@ function Education() {
 
               <button
                 type="button"
-                onClick={() => {
-                  setShowPasswordModal(false)
-                  setDownloadFile(null)
-                  setDownloadPassword("")
-                  setPasswordError("")
-                }}
-                className="text-xl text-slate-500 transition hover:text-white"
+                onClick={closePasswordModal}
+                disabled={isDownloading}
+                className="text-xl text-slate-500 transition hover:text-white disabled:opacity-40"
                 aria-label="Close"
               >
                 ×
@@ -715,7 +922,10 @@ function Education() {
                 setPasswordError("")
               }}
               onKeyDown={(event) => {
-                if (event.key === "Enter") {
+                if (
+                  event.key === "Enter" &&
+                  !isDownloading
+                ) {
                   void downloadPdf(
                     downloadFile,
                     downloadName,
@@ -726,9 +936,13 @@ function Education() {
               autoFocus
               placeholder="Enter PDF password"
               aria-invalid={Boolean(passwordError)}
-              aria-describedby={passwordError ? "pdf-password-error" : undefined}
+              aria-describedby={
+                passwordError ? "pdf-password-error" : undefined
+              }
               className={`mt-6 w-full rounded-xl border bg-slate-950 px-4 py-3.5 text-sm text-white outline-none transition focus:border-cyan-400 ${
-                passwordError ? "border-red-500" : "border-slate-700"
+                passwordError
+                  ? "border-red-500"
+                  : "border-slate-700"
               }`}
             />
 
@@ -739,28 +953,29 @@ function Education() {
                 aria-live="polite"
                 className="mt-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300"
               >
-                <p className="font-semibold">Password verification failed</p>
-                <p className="mt-1 break-words">{passwordError}</p>
+                <p className="font-semibold">
+                  Password verification failed
+                </p>
+
+                <p className="mt-1 break-words">
+                  {passwordError}
+                </p>
               </div>
             )}
 
             <div className="mt-4 flex gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  setShowPasswordModal(false)
-                  setDownloadFile(null)
-                  setDownloadPassword("")
-                  setPasswordError("")
-                }}
-                className="flex-1 rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
+                onClick={closePasswordModal}
+                disabled={isDownloading}
+                className="flex-1 rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white disabled:opacity-50"
               >
                 Cancel
               </button>
 
               <button
                 type="button"
-                disabled={isDownloading}
+                disabled={isDownloading || !downloadPassword.trim()}
                 onClick={() =>
                   void downloadPdf(
                     downloadFile,
@@ -770,9 +985,7 @@ function Education() {
                 }
                 className="flex-1 rounded-xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-300 disabled:opacity-50"
               >
-                {isDownloading
-                  ? "Downloading..."
-                  : "Download"}
+                {isDownloading ? "Downloading..." : "Download"}
               </button>
             </div>
           </div>
