@@ -55,7 +55,7 @@ app.use(
 );
 
 app.use(express.json({ limit: "1mb" }));
-
+app.use("/api/ai", require("./routes/portfolioAssistant"));
 // --------------------------------------------------
 // MongoDB
 // --------------------------------------------------

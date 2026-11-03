@@ -19,6 +19,8 @@ import Copyright from "./components/Copyright";
 import PrivacyPolicy from "./components/PrivacyPolicy";
 import TermsOfUse from "./components/TermsOfUse";
 
+import PortfolioAssistant from "./components/PortfolioAssistant";
+
 function PortfolioLayout() {
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#020617] text-white">
@@ -139,6 +141,9 @@ function PortfolioLayout() {
 
         <Footer />
       </div>
+
+      {/* AI ASSISTANT - HOMEPAGE ONLY */}
+      <PortfolioAssistant />
     </div>
   );
 }
