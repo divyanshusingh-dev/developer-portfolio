@@ -298,6 +298,13 @@ function AdminPdfSecurity() {
   const [confirmationModal, setConfirmationModal] = useState<{ title: string; message: string; confirmLabel: string; danger?: boolean; onConfirm: () => void } | null>(null)
   const [activeTab, setActiveTab] = useState<"dashboard" | "announcements">("dashboard")
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [announcementSearch, setAnnouncementSearch] = useState("")
+  const [announcementPriorityFilter, setAnnouncementPriorityFilter] = useState("all")
+  const [announcementDateFilter, setAnnouncementDateFilter] = useState("all")
+  const [announcementDateFrom, setAnnouncementDateFrom] = useState("")
+  const [announcementDateTo, setAnnouncementDateTo] = useState("")
+  const [announcementAdminFilter, setAnnouncementAdminFilter] = useState("all")
+  const [announcementStatusFilter, setAnnouncementStatusFilter] = useState("active")
   const [announcementTitle, setAnnouncementTitle] = useState("")
   const [announcementMessage, setAnnouncementMessage] = useState("")
   const [announcementPriority, setAnnouncementPriority] = useState<Announcement["priority"]>("normal")
@@ -436,6 +443,34 @@ function AdminPdfSecurity() {
   }
 
   const visibleAnnouncements = announcements.filter((item) => !item.expiresAt || new Date(item.expiresAt).getTime() >= Date.now())
+  const filteredAnnouncements = announcements.filter((item) => {
+    const now = new Date()
+    const created = new Date(item.createdAt)
+    const expiry = item.expiresAt ? new Date(item.expiresAt) : null
+    const expired = Boolean(expiry && expiry.getTime() < now.getTime())
+    const query = announcementSearch.trim().toLowerCase()
+    const matchesSearch = !query || item.title.toLowerCase().includes(query) || item.message.toLowerCase().includes(query)
+    const matchesPriority = announcementPriorityFilter === "all" || item.priority === announcementPriorityFilter
+    const matchesStatus = announcementStatusFilter === "all" || (announcementStatusFilter === "active" ? !expired : expired)
+    let matchesDate = true
+    if (announcementDateFilter === "today") {
+      matchesDate = created.toDateString() === now.toDateString()
+    } else if (announcementDateFilter === "7" || announcementDateFilter === "30") {
+      const days = Number(announcementDateFilter)
+      const start = new Date(now)
+      start.setDate(start.getDate() - days)
+      start.setHours(0, 0, 0, 0)
+      matchesDate = created >= start && created <= now
+    } else if (announcementDateFilter === "custom") {
+      const from = announcementDateFrom ? new Date(`${announcementDateFrom}T00:00:00`) : null
+      const to = announcementDateTo ? new Date(`${announcementDateTo}T23:59:59.999`) : null
+      matchesDate = (!from || created >= from) && (!to || created <= to)
+    }
+    const adminKey = item.createdByEmail || item.createdById || item.createdByName
+    const matchesAdmin = announcementAdminFilter === "all" || adminKey === announcementAdminFilter
+    return matchesSearch && matchesPriority && matchesDate && matchesAdmin && matchesStatus
+  })
+  const announcementAdminOptions = Array.from(new Map(announcements.map((item) => [item.createdByEmail || item.createdById || item.createdByName, item])).entries())
 
   useEffect(() => {
     if (pendingAdminRequests.length > seenPendingCount) {
@@ -3274,8 +3309,17 @@ function AdminPdfSecurity() {
 
           <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl sm:p-6">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-300">Notice archive</p><h3 className="mt-2 text-xl font-bold text-white">Saved announcements</h3><p className="mt-1 text-sm text-slate-500">{visibleAnnouncements.length} active on the server</p></div><span className="w-fit rounded-full border border-emerald-400/20 px-3 py-1 text-xs text-emerald-300">Published announcement</span></div>
-            <div className="mt-5 space-y-3">
-              {visibleAnnouncements.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-700 px-4 py-10 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800 text-slate-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6" aria-hidden="true"><path d="m3 11 18-5-5 17-4-7-9-5Z" strokeLinejoin="round"/></svg></div><p className="mt-3 font-semibold text-slate-200">No announcements yet</p><p className="mt-1 text-sm text-slate-500">Create a notice using the form.</p></div> : visibleAnnouncements.map((item) => <article key={item.id} className="rounded-2xl border border-slate-800 bg-slate-950/55 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${item.priority === "urgent" ? "border-red-400/30 bg-red-400/10 text-red-300" : item.priority === "important" ? "border-amber-400/30 bg-amber-400/10 text-amber-200" : "border-cyan-400/25 bg-cyan-400/10 text-cyan-200"}`}>{item.priority}</span><span className="text-xs text-slate-500">Created {formatDate(item.createdAt)}</span></div>{canDeleteAnnouncement(item) && <button type="button" onClick={() => void deleteAnnouncement(item.id)} className="rounded-lg border border-red-400/20 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-400/10">Delete</button>}</div><div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2"><span className="text-xs text-slate-500">Posted by</span><span className="text-xs font-semibold text-slate-200">{item.createdByName}</span><span className="rounded-full border border-violet-400/20 bg-violet-400/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-200">{item.createdByRole === "superadmin" ? "Super Admin" : "Admin"}</span>{item.createdByEmail && <span className="text-xs text-slate-500">{item.createdByEmail}</span>}</div><h4 className="mt-3 break-words text-base font-bold text-white">{item.title}</h4><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-400">{item.message}</p>{item.attachment && (
+            <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <input aria-label="Search announcements" value={announcementSearch} onChange={(event) => setAnnouncementSearch(event.target.value)} placeholder="Search title or message…" className="min-w-0 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400 sm:col-span-2 xl:col-span-1" />
+              <select aria-label="Filter by priority" value={announcementPriorityFilter} onChange={(event) => setAnnouncementPriorityFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-white"><option value="all">All priorities</option><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select>
+              <select aria-label="Filter by date" value={announcementDateFilter} onChange={(event) => setAnnouncementDateFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-white"><option value="all">All dates</option><option value="today">Today</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="custom">Custom range</option></select>
+              {announcementDateFilter === "custom" && <><input aria-label="Date from" type="date" value={announcementDateFrom} onChange={(event) => setAnnouncementDateFrom(event.target.value)} className="min-w-0 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-white"/><input aria-label="Date to" type="date" value={announcementDateTo} onChange={(event) => setAnnouncementDateTo(event.target.value)} className="min-w-0 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-white"/></>}
+              <select aria-label="Filter by admin" value={announcementAdminFilter} onChange={(event) => setAnnouncementAdminFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-white"><option value="all">All admins</option>{announcementAdminOptions.map(([key, item]) => <option key={key} value={key}>{item.createdByName}{item.createdByEmail ? ` (${item.createdByEmail})` : ""}</option>)}</select>
+              <select aria-label="Filter by status" value={announcementStatusFilter} onChange={(event) => setAnnouncementStatusFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-white"><option value="active">Active</option><option value="expired">Expired</option><option value="all">All statuses</option></select>
+              <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-2 xl:col-span-3"><p className="text-xs text-slate-400">Showing {filteredAnnouncements.length} of {announcements.length} announcements</p><button type="button" onClick={() => { setAnnouncementSearch(""); setAnnouncementPriorityFilter("all"); setAnnouncementDateFilter("all"); setAnnouncementDateFrom(""); setAnnouncementDateTo(""); setAnnouncementAdminFilter("all"); setAnnouncementStatusFilter("active") }} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800">Clear filters</button></div>
+            </div>
+            <div className="mt-3 space-y-3">
+              {filteredAnnouncements.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-700 px-4 py-10 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800 text-slate-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6" aria-hidden="true"><path d="m3 11 18-5-5 17-4-7-9-5Z" strokeLinejoin="round"/></svg></div><p className="mt-3 font-semibold text-slate-200">No announcements yet</p><p className="mt-1 text-sm text-slate-500">Create a notice using the form.</p></div> : filteredAnnouncements.map((item) => <article key={item.id} className="rounded-2xl border border-slate-800 bg-slate-950/55 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${item.priority === "urgent" ? "border-red-400/30 bg-red-400/10 text-red-300" : item.priority === "important" ? "border-amber-400/30 bg-amber-400/10 text-amber-200" : "border-cyan-400/25 bg-cyan-400/10 text-cyan-200"}`}>{item.priority}</span><span className="text-xs text-slate-500">Created {formatDate(item.createdAt)}</span></div>{canDeleteAnnouncement(item) && <button type="button" onClick={() => void deleteAnnouncement(item.id)} className="rounded-lg border border-red-400/20 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-400/10">Delete</button>}</div><div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2"><span className="text-xs text-slate-500">Posted by</span><span className="text-xs font-semibold text-slate-200">{item.createdByName}</span><span className="rounded-full border border-violet-400/20 bg-violet-400/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-200">{item.createdByRole === "superadmin" ? "Super Admin" : "Admin"}</span>{item.createdByEmail && <span className="text-xs text-slate-500">{item.createdByEmail}</span>}</div><h4 className="mt-3 break-words text-base font-bold text-white">{item.title}</h4><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-400">{item.message}</p>{item.attachment && (
                 <div className="mt-4 rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="min-w-0">
