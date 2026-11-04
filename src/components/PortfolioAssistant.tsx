@@ -22,8 +22,12 @@ const suggestions = [
 ];
 
 function normalizeMarkdown(content: string) {
-  // Correct common unnecessarily escaped Markdown characters.
-  return content.replace(/\\([*_`|#>-])/g, "$1");
+  return content
+    .replace(/\\([*_`|#>-])/g, "$1")
+    .replace(/\\<br\s*\/?>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/&#x20;/gi, " ")
+    .replace(/&nbsp;/gi, " ");
 }
 
 function PortfolioAssistant() {
