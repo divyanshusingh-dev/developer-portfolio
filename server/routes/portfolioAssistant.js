@@ -5,14 +5,15 @@ const OpenAI = require("openai");
 const router = express.Router();
 
 /* =========================================
-   OPENAI CONFIGURATION
+   GROQ API CONFIGURATION
 ========================================= */
 
-const apiKey = process.env.OPENAI_API_KEY;
+const apiKey = process.env.GROQ_API_KEY;
 
-const openai = apiKey
+const groq = apiKey
   ? new OpenAI({
       apiKey: apiKey,
+      baseURL: "https://api.groq.com/openai/v1",
     })
   : null;
 
@@ -126,11 +127,11 @@ RULES:
 
 router.post("/chat", async (req, res) => {
   try {
-    /* CHECK API KEY */
+    /* CHECK GROQ API KEY */
 
-    if (!openai) {
+    if (!groq) {
       console.error(
-        "Portfolio AI Error: OPENAI_API_KEY is missing."
+        "Portfolio AI Error: GROQ_API_KEY is missing."
       );
 
       return res.status(503).json({
@@ -185,33 +186,37 @@ router.post("/chat", async (req, res) => {
       });
     }
 
-    /* MODEL */
+    /* GROQ MODEL */
 
     const model =
-      process.env.OPENAI_MODEL || "gpt-5.5";
+      process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
 
     console.log("----------------------------------------");
     console.log("Portfolio AI request received");
+    console.log("Provider: Groq");
     console.log("Model:", model);
     console.log("Messages:", validMessages.length);
     console.log("----------------------------------------");
 
-    /* OPENAI REQUEST */
+    /* GROQ CHAT COMPLETION REQUEST */
 
-    const response = await openai.responses.create({
+    const response = await groq.chat.completions.create({
       model: model,
-      instructions: PORTFOLIO_CONTEXT,
-      input: validMessages,
-      max_output_tokens: 450,
-      store: false,
+      messages: [
+        {
+          role: "system",
+          content: PORTFOLIO_CONTEXT,
+        },
+        ...validMessages,
+      ],
+      max_tokens: 450,
+      temperature: 0.7,
     });
 
     /* EXTRACT RESPONSE */
 
     const reply =
-      typeof response.output_text === "string"
-        ? response.output_text.trim()
-        : "";
+      response.choices?.[0]?.message?.content?.trim() || "";
 
     /* EMPTY RESPONSE */
 
@@ -228,11 +233,12 @@ router.post("/chat", async (req, res) => {
 
     /* SUCCESS */
 
-    console.log("Portfolio AI response generated.");
+    console.log("Portfolio AI response generated successfully.");
 
     return res.status(200).json({
       reply: reply,
     });
+
   } catch (error) {
     /* =====================================
        DETAILED ERROR LOGGING
@@ -243,21 +249,19 @@ router.post("/chat", async (req, res) => {
     console.error("       PORTFOLIO AI ERROR");
     console.error("========================================");
 
+    console.error("Provider: Groq");
     console.error("Message:", error.message);
     console.error("Status:", error.status);
     console.error("Code:", error.code);
     console.error("Type:", error.type);
     console.error("API Error:", error.error);
     console.error("Request ID:", error.request_id);
-
     console.error("Full Error:", error);
 
     console.error("========================================");
     console.error("\n");
 
-    /* =====================================
-       SAFE ERROR RESPONSE
-    ===================================== */
+    /* SAFE ERROR RESPONSE */
 
     let status = 500;
 
@@ -277,22 +281,19 @@ router.post("/chat", async (req, res) => {
         "Invalid AI request. Please check the backend configuration.";
     } else if (status === 401) {
       errorMessage =
-        "AI authentication failed. Please check the backend API configuration.";
+        "Groq authentication failed. Please check the API key.";
     } else if (status === 403) {
       errorMessage =
-        "AI access denied. Please check your API project permissions.";
+        "Groq API access denied. Please check your API permissions.";
     } else if (status === 404) {
       errorMessage =
-        "The configured AI model was not found or is unavailable.";
+        "The configured Groq model was not found or is unavailable.";
     } else if (status === 429) {
       errorMessage =
-        "AI service quota or rate limit reached. Please try again later.";
-    } else if (status === 500) {
+        "Groq free-tier quota or rate limit reached. Please try again later.";
+    } else if (status >= 500) {
       errorMessage =
         "The AI service encountered an internal error. Please try again.";
-    } else if (status === 503) {
-      errorMessage =
-        "AI service is temporarily unavailable.";
     }
 
     return res.status(status).json({
