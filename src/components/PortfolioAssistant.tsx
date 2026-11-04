@@ -1,5 +1,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 const API_BASE =
   window.location.hostname === "localhost" ||
@@ -19,11 +21,17 @@ const suggestions = [
   "What experience does he have?",
 ];
 
+function normalizeMarkdown(content: string) {
+  // Correct common unnecessarily escaped Markdown characters.
+  return content.replace(/\\([*_`|#>-])/g, "$1");
+}
+
 function PortfolioAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -42,7 +50,10 @@ function PortfolioAssistant() {
 
   useEffect(() => {
     if (isOpen) {
-      const timer = window.setTimeout(() => inputRef.current?.focus(), 200);
+      const timer = window.setTimeout(() => {
+        inputRef.current?.focus();
+      }, 200);
+
       return () => window.clearTimeout(timer);
     }
   }, [isOpen]);
@@ -120,9 +131,140 @@ function PortfolioAssistant() {
           "Hello again! I'm Divyanshu AI. What would you like to know about Divyanshu?",
       },
     ]);
+
     setError("");
     setInput("");
+    setCopiedIndex(null);
   };
+
+  const handleCopy = async (content: string, index: number) => {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopiedIndex(index);
+
+      window.setTimeout(() => {
+        setCopiedIndex((current) =>
+          current === index ? null : current
+        );
+      }, 1800);
+    } catch {
+      setError("Unable to copy the response. Please try again.");
+    }
+  };
+
+  const renderMarkdown = (content: string) => (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        p: ({ children }) => (
+          <p className="mb-2 last:mb-0 leading-6">{children}</p>
+        ),
+
+        h1: ({ children }) => (
+          <h1 className="mb-3 mt-3 text-lg font-bold text-white">
+            {children}
+          </h1>
+        ),
+
+        h2: ({ children }) => (
+          <h2 className="mb-2 mt-3 text-base font-bold text-cyan-200">
+            {children}
+          </h2>
+        ),
+
+        h3: ({ children }) => (
+          <h3 className="mb-2 mt-3 text-sm font-bold text-cyan-200">
+            {children}
+          </h3>
+        ),
+
+        strong: ({ children }) => (
+          <strong className="font-bold text-white">{children}</strong>
+        ),
+
+        em: ({ children }) => (
+          <em className="italic text-slate-100">{children}</em>
+        ),
+
+        ul: ({ children }) => (
+          <ul className="mb-3 ml-4 list-disc space-y-1.5">
+            {children}
+          </ul>
+        ),
+
+        ol: ({ children }) => (
+          <ol className="mb-3 ml-4 list-decimal space-y-1.5">
+            {children}
+          </ol>
+        ),
+
+        li: ({ children }) => (
+          <li className="pl-1 leading-6">{children}</li>
+        ),
+
+        blockquote: ({ children }) => (
+          <blockquote className="my-3 border-l-2 border-cyan-400/60 pl-3 italic text-slate-300">
+            {children}
+          </blockquote>
+        ),
+
+        a: ({ href, children }) => (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="break-all text-cyan-300 underline decoration-cyan-400/40 underline-offset-4 transition hover:text-cyan-200"
+          >
+            {children}
+          </a>
+        ),
+
+        code: ({ children, className }) => (
+          <code
+            className={`rounded-md border border-white/10 bg-black/30 px-1.5 py-0.5 font-mono text-[12px] text-cyan-200 ${className ?? ""}`}
+          >
+            {children}
+          </code>
+        ),
+
+        pre: ({ children }) => (
+          <pre className="my-3 overflow-x-auto rounded-xl border border-white/10 bg-[#050c17] p-3 text-xs leading-6 text-cyan-100">
+            {children}
+          </pre>
+        ),
+
+        hr: () => <hr className="my-3 border-white/10" />,
+
+        table: ({ children }) => (
+          <div className="my-3 max-w-full overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full border-collapse text-left text-xs">
+              {children}
+            </table>
+          </div>
+        ),
+
+        thead: ({ children }) => (
+          <thead className="bg-cyan-400/10 text-cyan-200">
+            {children}
+          </thead>
+        ),
+
+        th: ({ children }) => (
+          <th className="border-b border-white/10 px-3 py-2 font-semibold">
+            {children}
+          </th>
+        ),
+
+        td: ({ children }) => (
+          <td className="border-b border-white/[0.06] px-3 py-2 align-top">
+            {children}
+          </td>
+        ),
+      }}
+    >
+      {normalizeMarkdown(content)}
+    </ReactMarkdown>
+  );
 
   return (
     <>
@@ -181,11 +323,12 @@ function PortfolioAssistant() {
           aria-modal="false"
           className="
             fixed bottom-4 right-4 z-[100]
-            flex h-[min(650px,calc(100dvh-2rem))]
-            w-[min(410px,calc(100vw-2rem))]
+            flex h-[min(680px,calc(100dvh-2rem))]
+            w-[min(430px,calc(100vw-2rem))]
             flex-col overflow-hidden
             rounded-3xl border border-cyan-400/20
-            bg-[#07111f] shadow-[0_20px_80px_rgba(0,0,0,0.65)]
+            bg-[#07111f]
+            shadow-[0_20px_80px_rgba(0,0,0,0.65)]
             animate-[assistantAppear_0.25s_ease-out]
           "
         >
@@ -222,6 +365,7 @@ function PortfolioAssistant() {
                   <h2 className="truncate text-base font-bold tracking-wide text-white">
                     Divyanshu AI
                   </h2>
+
                   <div className="mt-1 flex items-center gap-2">
                     <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.8)]" />
                     <span className="text-xs text-cyan-100/80">
@@ -308,7 +452,7 @@ function PortfolioAssistant() {
 
                   <div
                     className={`
-                      max-w-[84%] rounded-2xl px-4 py-3
+                      min-w-0 max-w-[84%] rounded-2xl px-4 py-3
                       text-[13px] leading-6
                       ${
                         isUser
@@ -317,9 +461,70 @@ function PortfolioAssistant() {
                       }
                     `}
                   >
-                    <p className="whitespace-pre-wrap break-words">
-                      {message.content}
-                    </p>
+                    {isUser ? (
+                      <p className="whitespace-pre-wrap break-words">
+                        {message.content}
+                      </p>
+                    ) : (
+                      <>
+                        <div className="break-words">
+                          {renderMarkdown(message.content)}
+                        </div>
+
+                        <div className="mt-3 flex justify-end border-t border-white/[0.06] pt-2">
+                          <button
+                            type="button"
+                            onClick={() => void handleCopy(message.content, index)}
+                            aria-label="Copy AI response"
+                            title="Copy response"
+                            className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-[10px] text-slate-400 transition hover:bg-white/10 hover:text-cyan-300"
+                          >
+                            {copiedIndex === index ? (
+                              <>
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  className="h-3.5 w-3.5"
+                                >
+                                  <path
+                                    d="m5 12 4 4L19 6"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </svg>
+                                Copied
+                              </>
+                            ) : (
+                              <>
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  className="h-3.5 w-3.5"
+                                >
+                                  <rect
+                                    x="8"
+                                    y="8"
+                                    width="12"
+                                    height="12"
+                                    rx="2"
+                                    stroke="currentColor"
+                                    strokeWidth="1.6"
+                                  />
+                                  <path
+                                    d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"
+                                    stroke="currentColor"
+                                    strokeWidth="1.6"
+                                  />
+                                </svg>
+                                Copy
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {isUser && (
@@ -331,6 +536,7 @@ function PortfolioAssistant() {
               );
             })}
 
+            {/* TYPING INDICATOR */}
             {isLoading && (
               <div className="flex items-end gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-cyan-400/20 bg-cyan-400/10 text-xs font-bold text-cyan-300">
@@ -345,9 +551,15 @@ function PortfolioAssistant() {
               </div>
             )}
 
+            {/* ERROR MESSAGE */}
             {error && (
               <div className="ml-10 rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-2 text-xs leading-5 text-red-200">
-                {error}
+                <div className="flex items-center gap-2 font-semibold">
+                  <span>Something went wrong</span>
+                </div>
+
+                <p className="mt-1">{error}</p>
+
                 <p className="mt-1 text-red-200/70">
                   Your message is saved in the input box. You can try sending it again.
                 </p>
