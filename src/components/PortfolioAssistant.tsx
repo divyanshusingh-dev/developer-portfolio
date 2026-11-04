@@ -424,9 +424,13 @@ export default function PortfolioAssistant() {
 }
 
         .astra-floating-button {
+          -webkit-animation:
+            astraFloat 4s ease-in-out infinite,
+            astraBreathing 3.5s ease-in-out infinite;
           animation:
             astraFloat 4s ease-in-out infinite,
             astraBreathing 3.5s ease-in-out infinite;
+          will-change: transform, box-shadow;
           transition: transform 0.3s ease;
         }
 
@@ -682,6 +686,73 @@ export default function PortfolioAssistant() {
           .astra-suggestion,
           .astra-send-button {
             transition: none !important;
+          }
+        }
+
+        /*
+          Mobile animation compatibility:
+          Re-enable ASTRA's visual animations on touch-sized screens.
+          The !important declarations also protect these effects from
+          broad global animation-reset rules in the main stylesheet.
+        */
+        @media (max-width: 768px) {
+          .astra-logo-wrapper {
+            -webkit-animation: astraFloat 4s ease-in-out infinite !important;
+            animation: astraFloat 4s ease-in-out infinite !important;
+            will-change: transform;
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
+            backface-visibility: hidden;
+          }
+
+          .astra-logo-wrapper::before {
+            -webkit-animation: astraGlow 3s ease-in-out infinite !important;
+            animation: astraGlow 3s ease-in-out infinite !important;
+            will-change: opacity, transform;
+          }
+
+          .astra-floating-button {
+            -webkit-animation:
+              astraFloat 4s ease-in-out infinite,
+              astraBreathing 3.5s ease-in-out infinite !important;
+            animation:
+              astraFloat 4s ease-in-out infinite,
+              astraBreathing 3.5s ease-in-out infinite !important;
+            will-change: transform, box-shadow;
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
+            backface-visibility: hidden;
+            -webkit-tap-highlight-color: transparent;
+          }
+
+          .astra-chat-window {
+            -webkit-animation: astraChatOpen 0.38s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+            animation: astraChatOpen 0.38s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+            will-change: transform, opacity;
+          }
+
+          .astra-chat-header::after {
+            -webkit-animation: astraShimmer 6s linear infinite !important;
+            animation: astraShimmer 6s linear infinite !important;
+          }
+
+          .astra-message,
+          .astra-suggestion {
+            -webkit-animation: astraMessageIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+            animation: astraMessageIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both !important;
+          }
+
+          .astra-typing-dot {
+            -webkit-animation: astraTyping 1.2s ease-in-out infinite !important;
+            animation: astraTyping 1.2s ease-in-out infinite !important;
+          }
+
+          .astra-typing-dot:nth-child(2) {
+            animation-delay: 0.15s !important;
+          }
+
+          .astra-typing-dot:nth-child(3) {
+            animation-delay: 0.3s !important;
           }
         }
       `}</style>

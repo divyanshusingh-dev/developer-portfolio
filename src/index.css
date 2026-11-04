@@ -196,23 +196,25 @@ section[id] {
 }
 
 /* ========================================
-   REVEAL ANIMATION
-   Content stays visible if animation is
-   unsupported or the class is not applied.
+   SCROLL REVEAL ANIMATIONS
 ======================================== */
 
 .project-reveal {
-  opacity: 1;
-  animation: project-reveal 800ms
-    cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-delay: var(--reveal-delay, 0ms);
+  opacity: 0;
+  transform: translate3d(0, 28px, 0);
+  transition:
+    opacity 700ms ease,
+    transform 700ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition-delay: var(--reveal-delay, 0ms);
 }
 
-/* Optional: apply to sections or other elements */
+.project-reveal.is-visible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+}
 
 .section-reveal {
-  animation: project-reveal 750ms
-    cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: project-reveal 750ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /* ========================================
@@ -228,10 +230,12 @@ section[id] {
     background-color var(--transition-normal);
 }
 
-.project-card:hover {
-  transform: translateY(-6px);
-  border-color: rgba(34, 211, 238, 0.32);
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2);
+@media (hover: hover) and (pointer: fine) {
+  .project-card:hover {
+    transform: translateY(-6px);
+    border-color: rgba(34, 211, 238, 0.32);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.2);
+  }
 }
 
 .project-card-featured {
@@ -272,10 +276,12 @@ section[id] {
     box-shadow var(--transition-normal);
 }
 
-.project-card:hover .project-preview {
-  transform: scale(1.015);
-  border-color: rgba(34, 211, 238, 0.25);
-  box-shadow: 0 12px 32px rgba(8, 145, 178, 0.08);
+@media (hover: hover) and (pointer: fine) {
+  .project-card:hover .project-preview {
+    transform: scale(1.015);
+    border-color: rgba(34, 211, 238, 0.25);
+    box-shadow: 0 12px 32px rgba(8, 145, 178, 0.08);
+  }
 }
 
 .project-preview img {
@@ -284,9 +290,11 @@ section[id] {
     filter 450ms ease;
 }
 
-.project-card:hover .project-preview img {
-  transform: scale(1.025);
-  filter: brightness(1.05);
+@media (hover: hover) and (pointer: fine) {
+  .project-card:hover .project-preview img {
+    transform: scale(1.025);
+    filter: brightness(1.05);
+  }
 }
 
 /* ========================================
@@ -302,9 +310,11 @@ section[id] {
     transform var(--transition-fast);
 }
 
-.project-action:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(34, 211, 238, 0.1);
+@media (hover: hover) and (pointer: fine) {
+  .project-action:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(34, 211, 238, 0.1);
+  }
 }
 
 .project-action:active {
@@ -320,8 +330,10 @@ section[id] {
   transition: transform var(--transition-fast);
 }
 
-a:hover .project-arrow {
-  transform: translate(3px, -3px);
+@media (hover: hover) and (pointer: fine) {
+  a:hover .project-arrow {
+    transform: translate(3px, -3px);
+  }
 }
 
 /* ========================================
@@ -336,10 +348,12 @@ a:hover .project-arrow {
     transform var(--transition-fast);
 }
 
-.project-tech:hover {
-  transform: translateY(-2px);
-  border-color: rgba(34, 211, 238, 0.4);
-  color: #a5f3fc;
+@media (hover: hover) and (pointer: fine) {
+  .project-tech:hover {
+    transform: translateY(-2px);
+    border-color: rgba(34, 211, 238, 0.4);
+    color: #a5f3fc;
+  }
 }
 
 /* ========================================
@@ -353,9 +367,11 @@ a:hover .project-arrow {
     transform var(--transition-smooth);
 }
 
-.project-card:hover .project-editor {
-  border-color: rgba(59, 130, 246, 0.3);
-  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.06);
+@media (hover: hover) and (pointer: fine) {
+  .project-card:hover .project-editor {
+    border-color: rgba(59, 130, 246, 0.3);
+    box-shadow: 0 12px 30px rgba(37, 99, 235, 0.06);
+  }
 }
 
 /* ========================================
@@ -377,20 +393,26 @@ a {
 }
 
 /* ========================================
-   RESPONSIVE EFFECTS
+   RESPONSIVE AND TOUCH EFFECTS
 ======================================== */
 
 @media (max-width: 640px) {
-  .project-card:hover {
-    transform: translateY(-3px);
+  .project-ambient {
+    animation-duration: 18s;
   }
 
-  .project-card:hover .project-preview {
-    transform: none;
+  .project-card-featured {
+    animation: none;
+  }
+}
+
+@media (hover: none) {
+  .project-card:active {
+    border-color: rgba(34, 211, 238, 0.4);
   }
 
-  .project-card:hover .project-preview img {
-    transform: none;
+  .project-action:active {
+    transform: scale(0.98);
   }
 }
 
@@ -409,52 +431,14 @@ a {
   }
 
   .project-reveal,
-  .section-reveal {
-    opacity: 1;
-    animation: none;
-    transform: none;
-  }
-
-  .project-card:hover,
-  .project-action:hover,
-  .project-tech:hover {
-    transform: none;
-  }
-}
-
-/* Scroll reveal animation */
-.project-reveal {
-  opacity: 0 !important;
-  transform: translateY(28px) !important;
-  animation: none !important;
-  transition:
-    opacity 700ms ease,
-    transform 700ms cubic-bezier(0.2, 0.7, 0.2, 1) !important;
-}
-
-.project-reveal.is-visible {
-  opacity: 1 !important;
-  transform: translateY(0) !important;
-}
-
-/* Smooth hover effects */
-.project-card {
-  transition:
-    transform 350ms ease,
-    border-color 350ms ease,
-    box-shadow 350ms ease !important;
-}
-
-.project-preview img {
-  transition: transform 500ms ease !important;
-}
-
-/* Respect accessibility settings */
-@media (prefers-reduced-motion: reduce) {
-  .project-reveal,
   .project-reveal.is-visible,
+  .section-reveal,
   .project-card,
-  .project-preview img {
+  .project-preview img,
+  .project-ambient,
+  .project-gradient,
+  .project-action,
+  .project-tech {
     animation: none !important;
     transition: none !important;
     opacity: 1 !important;

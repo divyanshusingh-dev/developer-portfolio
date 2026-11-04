@@ -1,37 +1,50 @@
 
-import { useEffect, useRef } from "react"
-import { projects } from "../data/projects"
+import { useEffect, useRef } from "react";
+import { projects } from "../data/projects";
 
 function Projects() {
-  const sectionRef = useRef<HTMLElement | null>(null)
+  const sectionRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    const section = sectionRef.current
-    if (!section) return
+    const section = sectionRef.current;
+    if (!section) return;
 
-    const items = section.querySelectorAll<HTMLElement>(".project-reveal")
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    const items =
+      section.querySelectorAll<HTMLElement>(".project-reveal");
 
-    if (reduceMotion) {
-      items.forEach((item) => item.classList.add("is-visible"))
-      return
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches;
+
+    if (
+      reduceMotion ||
+      !("IntersectionObserver" in window)
+    ) {
+      items.forEach((item) =>
+        item.classList.add("is-visible")
+      );
+      return;
     }
 
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            entry.target.classList.add("is-visible")
-            observer.unobserve(entry.target)
+            entry.target.classList.add("is-visible");
+            observer.unobserve(entry.target);
           }
-        })
+        });
       },
-      { threshold: 0.12, rootMargin: "0px 0px -40px 0px" },
-    )
+      {
+        threshold: 0.05,
+        rootMargin: "0px 0px -10px 0px",
+      }
+    );
 
-    items.forEach((item) => observer.observe(item))
-    return () => observer.disconnect()
-  }, [])
+    items.forEach((item) => observer.observe(item));
+
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <section
@@ -76,8 +89,9 @@ function Projects() {
             </h2>
 
             <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">
-              A selection of projects showcasing my approach to development,
-              interface design, and practical problem-solving.
+              A selection of projects showcasing my approach to
+              development, interface design, and practical
+              problem-solving.
             </p>
           </div>
 
@@ -94,16 +108,14 @@ function Projects() {
         {/* Projects */}
         <div className="space-y-8">
           {projects.map((project, index) => {
-            const number = String(index + 1).padStart(2, "0")
-            const isFeatured = index === 0
+            const number = String(index + 1).padStart(2, "0");
+            const isFeatured = index === 0;
 
-            // Optional image support without requiring changes to
-            // the existing project data type.
             const projectWithImage = project as typeof project & {
-              image?: string
-            }
+              image?: string;
+            };
 
-            const previewImage = projectWithImage.image
+            const previewImage = projectWithImage.image;
 
             const previewLines = [
               { key: "name", value: project.title },
@@ -112,15 +124,22 @@ function Projects() {
                 key: "stack",
                 value: project.technologies,
               },
-            ]
+            ];
 
             return (
               <article
                 key={project.title}
                 className={`project-reveal project-card group relative overflow-hidden rounded-2xl border border-slate-800/90 bg-[#050b1d]/90 transition-all duration-500 hover:-translate-y-1 hover:border-cyan-400/30 hover:shadow-2xl hover:shadow-cyan-950/20 ${
-                  isFeatured ? "project-card-featured border-cyan-400/30" : ""
+                  isFeatured
+                    ? "project-card-featured border-cyan-400/30"
+                    : ""
                 }`}
-                style={{ transitionDelay: `${Math.min(index * 100, 500)}ms` }}
+                style={{
+                  transitionDelay: `${Math.min(
+                    index * 100,
+                    500
+                  )}ms`,
+                }}
               >
                 {/* Top gradient */}
                 <div
@@ -129,7 +148,7 @@ function Projects() {
                 />
 
                 <div className="grid min-w-0 grid-cols-1 lg:grid-cols-[1.15fr_0.85fr]">
-                  {/* Left: project information */}
+                  {/* Project information */}
                   <div className="relative flex min-w-0 flex-col justify-center p-6 sm:p-9 lg:p-12">
                     <span
                       aria-hidden="true"
@@ -168,7 +187,7 @@ function Projects() {
                         {project.technologies.map((technology) => (
                           <span
                             key={technology}
-                            className="rounded-full border border-slate-700/80 bg-slate-900/80 px-3.5 py-2 text-[11px] font-semibold text-slate-300 transition-colors hover:border-cyan-400/40 hover:text-cyan-300"
+                            className="project-tech rounded-full border border-slate-700/80 bg-slate-900/80 px-3.5 py-2 text-[11px] font-semibold text-slate-300 transition-colors hover:border-cyan-400/40 hover:text-cyan-300"
                           >
                             {technology}
                           </span>
@@ -211,7 +230,7 @@ function Projects() {
                     </div>
                   </div>
 
-                  {/* Right: real screenshot + code editor */}
+                  {/* Preview and code editor */}
                   <div className="relative flex min-w-0 flex-col justify-center gap-5 overflow-hidden border-t border-slate-800/80 bg-[#070d20]/80 p-5 sm:p-8 lg:border-l lg:border-t-0 lg:p-8">
                     <div
                       aria-hidden="true"
@@ -239,7 +258,7 @@ function Projects() {
 
                       {previewImage ? (
                         <a
-                          href={project.live}
+                          href={project.live || project.github}
                           target="_blank"
                           rel="noopener noreferrer"
                           aria-label={`Open ${project.title} website preview`}
@@ -249,7 +268,7 @@ function Projects() {
                             src={previewImage}
                             alt={`${project.title} website screenshot`}
                             loading="lazy"
-                            className="block aspect-[16/10] w-full object-cover object-top transition-transform duration-500 hover:scale-[1.02]"
+                            className="block aspect-[16/10] w-full object-cover object-top transition-transform duration-500"
                           />
                         </a>
                       ) : (
@@ -269,14 +288,16 @@ function Projects() {
                           </div>
 
                           <div className="mt-5 flex flex-wrap gap-2">
-                            {project.technologies.slice(0, 3).map((tech) => (
-                              <span
-                                key={tech}
-                                className="rounded-md border border-cyan-400/20 bg-cyan-400/[0.05] px-2.5 py-1.5 text-[10px] text-cyan-200"
-                              >
-                                {tech}
-                              </span>
-                            ))}
+                            {project.technologies
+                              .slice(0, 3)
+                              .map((tech) => (
+                                <span
+                                  key={tech}
+                                  className="rounded-md border border-cyan-400/20 bg-cyan-400/[0.05] px-2.5 py-1.5 text-[10px] text-cyan-200"
+                                >
+                                  {tech}
+                                </span>
+                              ))}
                           </div>
                         </div>
                       )}
@@ -357,7 +378,7 @@ function Projects() {
                   </div>
                 </div>
               </article>
-            )
+            );
           })}
         </div>
 
@@ -379,7 +400,7 @@ function Projects() {
         </div>
       </div>
     </section>
-  )
+  );
 }
 
-export default Projects
+export default Projects;
