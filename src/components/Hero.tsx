@@ -837,6 +837,25 @@ function Hero() {
 
 
 <a
+  href="https://x.com/divyanshuxsingh"
+  target="_blank"
+  rel="noopener noreferrer"
+  aria-label="X (Twitter)"
+  title="X (Twitter)"
+  className="text-slate-500 transition-all duration-300 hover:-translate-y-1 hover:text-white"
+>
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    className="h-5 w-5"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path d="M18.9 2H22l-6.78 7.75L23.2 22h-6.25l-4.9-7.46L5.5 22H2.36l7.25-8.29L1.8 2h6.4l4.43 6.78L18.9 2Zm-1.1 18h1.73L7.27 3.9H5.4L17.8 20Z" />
+  </svg>
+</a>
+
+<a
   href="https://www.instagram.com/divyanshusingh_0077/"
   target="_blank"
   rel="noopener noreferrer"
