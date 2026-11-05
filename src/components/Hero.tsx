@@ -530,7 +530,7 @@ function Hero() {
 
 
 
-            <h1 className="mt-1 text-[clamp(2rem,6vw,3.35rem)] font-black leading-tight tracking-tight text-white">
+            <h1 className="mt-1 text-[clamp(2rem,6vw,3.35rem)] font-bold leading-tight tracking-tight text-white">
 
               Divyanshu{" "}
 
