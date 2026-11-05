@@ -447,7 +447,7 @@ function Education() {
                   Bachelor of Computer Applications
                 </p>
 
-                <h3 className="text-xl font-bold text-white sm:text-2xl">
+                <h3 className="text-xl font-medium text-white sm:text-xl">
                   Bachelor of Computer Applications (BCA)
                 </h3>
 
@@ -516,7 +516,7 @@ function Education() {
                       </div>
 
                       <p
-                        className={`mt-4 text-2xl font-bold ${
+                        className={`mt-4 text-xl font-medium ${
                           hasSgpa ? "text-white" : "text-slate-600"
                         }`}
                       >
