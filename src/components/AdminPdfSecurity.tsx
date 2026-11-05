@@ -1860,126 +1860,216 @@ function AdminPdfSecurity() {
           }
         `}</style>
 
-        <div className="mx-auto flex min-h-[80vh] w-full max-w-md items-center justify-center">
-          <div className="w-full rounded-3xl border border-slate-800 bg-slate-900/80 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
-            <div className="mb-8">
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-400">
-                Admin Access
-              </p>
-              <h1 className="mt-3 text-2xl font-bold text-white sm:text-3xl">
-                Administrator
-              </h1>
-              <p className="mt-3 text-sm leading-6 text-slate-400">
-                Access to the Admin Panel is restricted to authorized administrators only. Please enter the correct admin password to proceed.
-              </p>
-            </div>
-
-            <form onSubmit={handleLogin}>
-              <label
-                htmlFor="admin-email"
-                className="mb-2 block text-sm font-medium text-slate-300"
-              >
-                Admin Email
-              </label>
-
-              <input
-                id="admin-email"
-                type="email"
-                value={adminEmail}
-                onChange={(event) => {
-                  setAdminEmail(event.target.value)
-                  setError("")
-                }}
-                placeholder="Enter registered admin email"
-                autoComplete="username"
-                disabled={isLoading}
-                className="mb-4 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400"
-              />
-
-              <label
-                htmlFor="admin-password"
-                className="mb-2 block text-sm font-medium text-slate-300"
-              >
-                Admin Password
-              </label>
-
-              <div className="relative">
-                <input
-                  id="admin-password"
-                  type={showLoginPassword ? "text" : "password"}
-                  value={password}
-                  onChange={(event) => {
-                    setPassword(event.target.value)
-                    setError("")
-                  }}
-                  placeholder="Enter admin password"
-                  autoComplete="current-password"
-                  disabled={isLoading}
-                  className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 pr-12 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowLoginPassword((current) => !current)}
-                  disabled={isLoading}
-                  aria-label={showLoginPassword ? "Hide admin password" : "Show admin password"}
-                  className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300"
-                >
-                  {showLoginPassword ? (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
-                      <path d="M3 3l18 18" />
-                      <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
-                      <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5 0 9 4 10 8a10.8 10.8 0 0 1-3.1 5.1" />
-                      <path d="M6.6 6.6C4.8 7.8 3.5 9.5 2 12c1 4 5 8 10 8 1.4 0 2.7-.3 3.9-.8" />
-                    </svg>
-                  ) : (
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
-                      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                  )}
-                </button>
+        <div className="mx-auto flex min-h-[82vh] w-full max-w-6xl items-center justify-center py-8 sm:py-12">
+          <div className="grid w-full overflow-hidden rounded-[2rem] border border-slate-800/90 bg-slate-900/80 shadow-[0_30px_100px_rgba(0,0,0,0.45)] backdrop-blur-2xl lg:grid-cols-[1.02fr_0.98fr]">
+            {/* Brand / information panel */}
+            <section className="relative hidden min-h-[650px] overflow-hidden border-r border-slate-800/80 bg-[#061426] p-10 lg:flex lg:flex-col lg:justify-between xl:p-14">
+              <div className="pointer-events-none absolute -left-28 -top-28 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
+              <div className="pointer-events-none absolute -bottom-32 -right-20 h-96 w-96 rounded-full bg-blue-500/10 blur-3xl" />
+              <div className="relative z-10 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-300/25 bg-cyan-300/10 text-cyan-200 shadow-lg shadow-cyan-950/30">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-6 w-6" aria-hidden="true">
+                    <path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9Z" strokeLinejoin="round" />
+                    <path d="m8 10 4-2.2 4 2.2v4l-4 2.2L8 14v-4Z" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font tracking-[0.18em] text-white">DEVELOPER</p>
+                  <p className="mt-0.5 text-[10px] font-semibold tracking-[0.25em] text-cyan-300/75">PORTFOLIO SYSTEMS</p>
+                </div>
               </div>
 
-              {error && (
-                <div className="mt-4 rounded-xl border border-red-400/20 bg-red-400/5 px-4 py-3 text-sm text-red-300">
-                  {error}
+              <div className="relative z-10 max-w-lg">
+                
+                <h1 className="mt-7 text-3xl font-bold leading-[1.12] tracking-tight text-white xl:text-5xl">
+                  Manage your
+                  <span className="block">digital presence.</span>
+                </h1>
+                <p className="mt-6 max-w-md text-sm leading-7 text-slate-400">
+                  A private control centre for portfolio documents, academic records, announcements and administrator access.
+                </p>
+
+                <div className="mt-10 space-y-4">
+                  {[
+                    ["01", "Document management", "Upload, preview and protect portfolio PDFs."],
+                    ["02", "Academic records", "Maintain semester results and education details."],
+                    ["03", "Access control", "Manage administrator permissions securely."],
+                  ].map(([number, title, description]) => (
+                    <div key={number} className="flex items-start gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-300/10 text-xs font-extrabold text-cyan-200">{number}</span>
+                      <div>
+                        <p className="text-sm font-bold text-slate-100">{title}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
 
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="mt-6 flex w-full items-center justify-center rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-400 transition hover:bg-cyan-400 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isLoading ? "Checking..." : "Login to Admin Panel"}
-              </button>
-            </form>
+              <div className="relative z-10 flex items-center justify-between border-t border-white/[0.07] pt-5 text-[10px] font-medium tracking-wide text-slate-600">
+                <span>PRIVATE ADMINISTRATOR AREA</span>
+                <span>© {new Date().getFullYear()} PORTFOLIO</span>
+              </div>
+            </section>
 
-            <button
-              type="button"
-              onClick={resetAdminPasswordFlow}
-              disabled={isLoading}
-              className="mt-4 w-full rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Forgot / Change Admin Password?
-            </button>
+            {/* Login form */}
+            <section className="flex min-h-[650px] flex-col justify-center px-5 py-9 sm:px-10 sm:py-12 xl:px-14">
+              <div className="mx-auto w-full max-w-md">
+                <div className="mb-8 flex items-center gap-3 lg:hidden">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-300/25 bg-cyan-300/10 text-cyan-200">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5" aria-hidden="true">
+                      <path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9Z" strokeLinejoin="round" />
+                      <path d="m8 10 4-2.2 4 2.2v4l-4 2.2L8 14v-4Z" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium tracking-[0.16em] text-white">DEVELOPER PORTFOLIO</p>
+                    <p className="mt-0.5 text-[10px] font-semibold tracking-[0.18em] text-cyan-300">ADMIN CONSOLE</p>
+                  </div>
+                </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                setShowAdminRegistration(true)
-                setRegistrationError("")
-                setRegistrationSuccess("")
-              }}
-              disabled={isLoading}
-              className="mt-3 w-full rounded-xl border border-cyan-400/20 bg-cyan-400/5 px-4 py-3 text-sm font-semibold text-cyan-300 transition hover:border-cyan-400/50 hover:bg-cyan-400/10 disabled:opacity-50"
-            >
-              Register for Admin Access
-            </button>
+                <div className="mb-8">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-cyan-300">Welcome back</p>
+                  <h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">Admin sign in</h2>
+                  <p className="mt-3 max-w-sm text-sm leading-6 text-slate-400">
+                    Sign in with your registered administrator account to continue.
+                  </p>
+                </div>
 
-            <p className="mt-3 text-center text-[11px] leading-5 text-slate-600">
-              Password reset requires OTP verification on your registered admin email.
-            </p>
+                <form onSubmit={handleLogin} className="space-y-5">
+                  <div>
+                    <label htmlFor="admin-email" className="mb-2 block text-xs font-medium tracking-wide text-slate-300">
+                      EMAIL ADDRESS
+                    </label>
+                    <div className="group flex items-center gap-3 rounded-2xl border border-slate-700/90 bg-slate-950/70 px-4 transition focus-within:border-cyan-300/70 focus-within:ring-4 focus-within:ring-cyan-300/10">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5 shrink-0 text-slate-500 transition group-focus-within:text-cyan-300" aria-hidden="true">
+                        <rect x="3" y="5" width="18" height="14" rx="2.5" />
+                        <path d="m4 7 8 6 8-6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <input
+                        id="admin-email"
+                        type="email"
+                        value={adminEmail}
+                        onChange={(event) => { setAdminEmail(event.target.value); setError("") }}
+                        placeholder="name@example.com"
+                        autoComplete="username"
+                        disabled={isLoading}
+                        className="h-14 min-w-0 w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-600 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="admin-password" className="mb-2 block text-xs font-medium tracking-wide text-slate-300">
+                      PASSWORD
+                    </label>
+                    <div className="group flex items-center gap-3 rounded-2xl border border-slate-700/90 bg-slate-950/70 px-4 transition focus-within:border-cyan-300/70 focus-within:ring-4 focus-within:ring-cyan-300/10">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5 shrink-0 text-slate-500 transition group-focus-within:text-cyan-300" aria-hidden="true">
+                        <rect x="4" y="10" width="16" height="11" rx="2.5" />
+                        <path d="M8 10V7a4 4 0 0 1 8 0v3" strokeLinecap="round" />
+                        <path d="M12 14v3" strokeLinecap="round" />
+                      </svg>
+                      <input
+                        id="admin-password"
+                        type={showLoginPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(event) => { setPassword(event.target.value); setError("") }}
+                        placeholder="Enter your password"
+                        autoComplete="current-password"
+                        disabled={isLoading}
+                        className="h-14 min-w-0 w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-600 disabled:opacity-50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword((current) => !current)}
+                        disabled={isLoading}
+                        aria-label={showLoginPassword ? "Hide admin password" : "Show admin password"}
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-white/5 hover:text-cyan-200 disabled:opacity-40"
+                      >
+                        {showLoginPassword ? (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5" aria-hidden="true">
+                            <path d="M3 3l18 18" /><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                            <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5 0 9 4 10 8a10.8 10.8 0 0 1-3.1 5.1" />
+                            <path d="M6.6 6.6C4.8 7.8 3.5 9.5 2 12c1 4 5 8 10 8 1.4 0 2.7-.3 3.9-.8" />
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5" aria-hidden="true">
+                            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div role="alert" className="flex items-start gap-2.5 rounded-2xl border border-rose-400/20 bg-rose-400/[0.07] px-4 py-3 text-sm leading-6 text-rose-300">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true">
+                        <circle cx="12" cy="12" r="9" /><path d="M12 8v5m0 3h.01" strokeLinecap="round" />
+                      </svg>
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="group flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-300 to-sky-400 px-5 py-3.5 text-sm font-extrabold text-slate-950 shadow-lg shadow-cyan-950/30 transition duration-200 hover:-translate-y-0.5 hover:from-cyan-200 hover:to-sky-300 hover:shadow-cyan-900/40 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                  >
+                    {isLoading ? (
+                      <>
+                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" opacity=".25" />
+                          <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                        </svg>
+                        Verifying access...
+                      </>
+                    ) : (
+                      <>
+                        Sign in to dashboard
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden="true">
+                          <path d="M5 12h14m-6-6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <div className="my-7 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-slate-800" />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600">Account assistance</span>
+                  <div className="h-px flex-1 bg-slate-800" />
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={resetAdminPasswordFlow}
+                    disabled={isLoading}
+                    className="rounded-xl border border-slate-700/90 bg-slate-950/40 px-3 py-3 text-xs font-bold text-slate-300 transition hover:border-cyan-300/40 hover:bg-cyan-300/[0.06] hover:text-cyan-200 disabled:opacity-50"
+                  >
+                    Forgot password?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowAdminRegistration(true); setRegistrationError(""); setRegistrationSuccess("") }}
+                    disabled={isLoading}
+                    className="rounded-xl border border-cyan-300/25 bg-cyan-300/[0.06] px-3 py-3 text-xs font-bold text-cyan-200 transition hover:border-cyan-300/50 hover:bg-cyan-300/10 disabled:opacity-50"
+                  >
+                    Request admin access
+                  </button>
+                </div>
+
+                <div className="mt-7 flex items-start gap-3 rounded-2xl border border-slate-800/80 bg-slate-950/40 p-4">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" aria-hidden="true">
+                    <path d="M12 3 19 6v5c0 4.5-2.8 7.8-7 10-4.2-2.2-7-5.5-7-10V6l7-3Z" strokeLinejoin="round" />
+                    <path d="m9 12 2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <p className="text-[11px] leading-5 text-slate-500">
+                    This area is restricted to authorized administrators. Password recovery is verified using an OTP sent to your registered email.
+                  </p>
+                </div>
+              </div>
+            </section>
           </div>
         </div>
 
