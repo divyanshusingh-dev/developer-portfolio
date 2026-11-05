@@ -19,7 +19,7 @@ function Hero() {
   const roles = [
 
     "Jr. Software Developer",
-
+"Graphic Designer",
     "Frontend Developer",
 
     "React Developer",
