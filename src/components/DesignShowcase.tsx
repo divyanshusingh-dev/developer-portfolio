@@ -1,4 +1,3 @@
-
 const designs = [
   {
     title: "College Event Poster",
@@ -58,9 +57,7 @@ export default function DesignShowcase() {
                   href={design.image}
                   target="_blank"
                   rel="noreferrer"
-                  tabIndex={
-                    index >= designs.length ? -1 : undefined
-                  }
+                  tabIndex={index >= designs.length ? -1 : undefined}
                   aria-label={`Open ${design.title}`}
                   className="block overflow-hidden"
                 >
@@ -86,9 +83,7 @@ export default function DesignShowcase() {
                     href={design.image}
                     target="_blank"
                     rel="noreferrer"
-                    tabIndex={
-                      index >= designs.length ? -1 : undefined
-                    }
+                    tabIndex={index >= designs.length ? -1 : undefined}
                     className="mt-4 inline-flex text-sm font-medium text-slate-300 transition-colors hover:text-cyan-400"
                   >
                     View Design ↗
@@ -128,11 +123,15 @@ export default function DesignShowcase() {
         }
 
         .showcase-track {
+          --loop-gap: 24px;
+
           display: flex;
           width: max-content;
-          gap: 24px;
+          gap: var(--loop-gap);
           animation: showcase-scroll 24s linear infinite;
           will-change: transform;
+          transform: translate3d(0, 0, 0);
+          backface-visibility: hidden;
         }
 
         .showcase-card {
@@ -147,7 +146,7 @@ export default function DesignShowcase() {
 
           to {
             transform: translate3d(
-              calc(-50% - 12px),
+              calc(-50% - (var(--loop-gap) / 2)),
               0,
               0
             );
@@ -157,6 +156,10 @@ export default function DesignShowcase() {
         @media (hover: hover) and (pointer: fine) {
           .showcase-slider:hover .showcase-track {
             animation-play-state: paused;
+          }
+
+          .showcase-card:hover img {
+            transform: scale(1.05);
           }
         }
 
@@ -179,7 +182,7 @@ export default function DesignShowcase() {
           }
 
           .showcase-track {
-            gap: 16px;
+            --loop-gap: 16px;
             animation-duration: 18s;
             animation-play-state: running;
           }
