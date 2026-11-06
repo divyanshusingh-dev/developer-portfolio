@@ -1,4 +1,6 @@
 
+import { useEffect, useRef } from "react";
+
 const designs = [
   {
     title: "College Event Poster",
@@ -21,6 +23,102 @@ const designs = [
 ];
 
 export default function DesignShowcase() {
+  const trackRef = useRef(null);
+  const sliderRef = useRef(null);
+
+  useEffect(() => {
+    const track = trackRef.current;
+    const slider = sliderRef.current;
+
+    if (!track || !slider) return;
+
+    let animationFrame;
+    let offset = 0;
+    let previousTime = 0;
+    let loopWidth = 0;
+    let paused = false;
+
+    const speed = 45; // Pixels per second
+
+    const measureWidth = () => {
+      loopWidth = track.scrollWidth / 2;
+
+      if (loopWidth > 0) {
+        offset = offset % loopWidth;
+      }
+    };
+
+    const animate = (time) => {
+      if (!previousTime) previousTime = time;
+
+      const delta = Math.min(time - previousTime, 40);
+      previousTime = time;
+
+      if (!paused && loopWidth > 0) {
+        offset += (speed * delta) / 1000;
+
+        if (offset >= loopWidth) {
+          offset -= loopWidth;
+        }
+
+        track.style.transform = `translate3d(-${offset}px, 0, 0)`;
+      }
+
+      animationFrame = requestAnimationFrame(animate);
+    };
+
+    // Pause on desktop hover
+    const handleMouseEnter = () => {
+      paused = true;
+    };
+
+    const handleMouseLeave = () => {
+      paused = false;
+      previousTime = 0;
+    };
+
+    // Pause while touching on mobile
+    const handleTouchStart = () => {
+      paused = true;
+    };
+
+    const handleTouchEnd = () => {
+      paused = false;
+      previousTime = 0;
+    };
+
+    slider.addEventListener("mouseenter", handleMouseEnter);
+    slider.addEventListener("mouseleave", handleMouseLeave);
+    slider.addEventListener("touchstart", handleTouchStart, {
+      passive: true,
+    });
+    slider.addEventListener("touchend", handleTouchEnd, {
+      passive: true,
+    });
+    slider.addEventListener("touchcancel", handleTouchEnd, {
+      passive: true,
+    });
+
+    const resizeObserver = new ResizeObserver(measureWidth);
+
+    resizeObserver.observe(track);
+
+    measureWidth();
+
+    animationFrame = requestAnimationFrame(animate);
+
+    return () => {
+      cancelAnimationFrame(animationFrame);
+      resizeObserver.disconnect();
+
+      slider.removeEventListener("mouseenter", handleMouseEnter);
+      slider.removeEventListener("mouseleave", handleMouseLeave);
+      slider.removeEventListener("touchstart", handleTouchStart);
+      slider.removeEventListener("touchend", handleTouchEnd);
+      slider.removeEventListener("touchcancel", handleTouchEnd);
+    };
+  }, []);
+
   const scrollingDesigns = [...designs, ...designs];
 
   return (
@@ -30,7 +128,7 @@ export default function DesignShowcase() {
     >
       <div className="mx-auto max-w-7xl">
 
-        {/* Section Heading */}
+        {/* Heading */}
         <div className="mb-8 sm:mb-10">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-cyan-400 sm:text-sm">
             Creative Work
@@ -46,15 +144,19 @@ export default function DesignShowcase() {
           </p>
         </div>
 
-        {/* Infinite Auto Slider */}
-        <div className="showcase-slider">
-          <div className="showcase-track">
+        {/* Auto Moving Slider */}
+        <div
+          ref={sliderRef}
+          className="showcase-slider relative w-full overflow-hidden"
+        >
+          <div
+            ref={trackRef}
+            className="showcase-track flex w-max gap-6"
+          >
             {scrollingDesigns.map((design, index) => (
               <article
                 key={`${design.image}-${index}`}
-                aria-hidden={
-                  index >= designs.length ? true : undefined
-                }
+                aria-hidden={index >= designs.length ? true : undefined}
                 className="showcase-card group overflow-hidden rounded-2xl border border-white/10 bg-slate-900/80 transition-colors duration-300 hover:border-cyan-400/50"
               >
                 <a
@@ -98,14 +200,14 @@ export default function DesignShowcase() {
           </div>
         </div>
 
-        {/* Footer Text */}
+        {/* Footer */}
         <p className="mt-5 text-center text-xs text-slate-500">
           Explore my creative work
           <span className="ml-2 text-cyan-400">→</span>
         </p>
       </div>
 
-      {/* Slider CSS */}
+      {/* Responsive Styling */}
       <style>{`
         .showcase-slider {
           position: relative;
@@ -118,7 +220,6 @@ export default function DesignShowcase() {
           display: flex;
           width: max-content;
           gap: 24px;
-          animation: showcase-scroll 25s linear infinite;
           will-change: transform;
           transform: translate3d(0, 0, 0);
         }
@@ -132,32 +233,6 @@ export default function DesignShowcase() {
           display: block;
         }
 
-        @keyframes showcase-scroll {
-          from {
-            transform: translate3d(0, 0, 0);
-          }
-
-          to {
-            transform: translate3d(
-              calc(-50% - 12px),
-              0,
-              0
-            );
-          }
-        }
-
-        /* Desktop Hover Pause */
-        @media (hover: hover) and (pointer: fine) {
-          .showcase-slider:hover .showcase-track {
-            animation-play-state: paused;
-          }
-
-          .showcase-card:hover .showcase-image {
-            transform: scale(1.05);
-          }
-        }
-
-        /* Mobile Responsive */
         @media (max-width: 640px) {
           .showcase-slider {
             width: calc(100% + 20px);
@@ -167,12 +242,10 @@ export default function DesignShowcase() {
 
           .showcase-track {
             gap: 16px;
-            animation: showcase-scroll 18s linear infinite;
-            animation-play-state: running;
           }
 
           .showcase-card {
-            flex: 0 0 min(260px, 78vw);
+            flex: 0 0 78vw;
           }
 
           .showcase-image {
@@ -181,17 +254,15 @@ export default function DesignShowcase() {
           }
         }
 
-        /* Tablet */
         @media (min-width: 641px) and (max-width: 1024px) {
           .showcase-card {
             flex: 0 0 280px;
           }
         }
 
-        /* Reduced Motion Accessibility */
         @media (prefers-reduced-motion: reduce) {
           .showcase-track {
-            animation: none !important;
+            will-change: auto;
           }
         }
       `}</style>
