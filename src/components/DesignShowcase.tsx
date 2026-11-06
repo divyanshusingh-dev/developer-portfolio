@@ -23,99 +23,87 @@ const designs = [
 ];
 
 export default function DesignShowcase() {
-  const trackRef = useRef(null);
-  const sliderRef = useRef(null);
+  const trackRef = useRef<HTMLDivElement>(null);
+  const sliderRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const track = trackRef.current;
     const slider = sliderRef.current;
 
     if (!track || !slider) return;
-
-    let animationFrame;
-    let offset = 0;
+console.log("DESIGN SLIDER INITIALIZED");
+console.log("Track width:", track.scrollWidth);
+console.log("Slider width:", slider.clientWidth);
+console.log("Cards:", track.children.length);
+    let frameId = 0;
     let previousTime = 0;
+    let offset = 0;
     let loopWidth = 0;
     let paused = false;
 
-    const speed = 45; // Pixels per second
+    const speed = 35;
 
-    const measureWidth = () => {
-      loopWidth = track.scrollWidth / 2;
+    const measure = () => {
+      const firstGroup = track.children;
+
+      if (firstGroup.length < designs.length * 2) return;
+
+      const firstCard = firstGroup[0] as HTMLElement;
+      const lastCard = firstGroup[designs.length - 1] as HTMLElement;
+      const firstRect = firstCard.getBoundingClientRect();
+      const lastRect = lastCard.getBoundingClientRect();
+
+      loopWidth = lastRect.right - firstRect.left;
 
       if (loopWidth > 0) {
         offset = offset % loopWidth;
+        track.style.transform = `translate3d(-${offset}px, 0, 0)`;
       }
     };
 
-    const animate = (time) => {
-      if (!previousTime) previousTime = time;
+    const animate = (time: number) => {
+      if (previousTime === 0) previousTime = time;
 
-      const delta = Math.min(time - previousTime, 40);
+      const delta = Math.min(time - previousTime, 50);
       previousTime = time;
 
       if (!paused && loopWidth > 0) {
         offset += (speed * delta) / 1000;
 
         if (offset >= loopWidth) {
-          offset -= loopWidth;
+          offset %= loopWidth;
         }
 
         track.style.transform = `translate3d(-${offset}px, 0, 0)`;
       }
 
-      animationFrame = requestAnimationFrame(animate);
+      frameId = requestAnimationFrame(animate);
     };
 
-    // Pause on desktop hover
-    const handleMouseEnter = () => {
+    const pause = () => {
       paused = true;
     };
 
-    const handleMouseLeave = () => {
+    const resume = () => {
       paused = false;
       previousTime = 0;
     };
 
-    // Pause while touching on mobile
-    const handleTouchStart = () => {
-      paused = true;
-    };
+    const resizeObserver = new ResizeObserver(measure);
+    resizeObserver.observe(slider);
 
-    const handleTouchEnd = () => {
-      paused = false;
-      previousTime = 0;
-    };
+    slider.addEventListener("mouseenter", pause);
+    slider.addEventListener("mouseleave", resume);
 
-    slider.addEventListener("mouseenter", handleMouseEnter);
-    slider.addEventListener("mouseleave", handleMouseLeave);
-    slider.addEventListener("touchstart", handleTouchStart, {
-      passive: true,
-    });
-    slider.addEventListener("touchend", handleTouchEnd, {
-      passive: true,
-    });
-    slider.addEventListener("touchcancel", handleTouchEnd, {
-      passive: true,
-    });
-
-    const resizeObserver = new ResizeObserver(measureWidth);
-
-    resizeObserver.observe(track);
-
-    measureWidth();
-
-    animationFrame = requestAnimationFrame(animate);
+    measure();
+    frameId = requestAnimationFrame(animate);
 
     return () => {
-      cancelAnimationFrame(animationFrame);
+      cancelAnimationFrame(frameId);
       resizeObserver.disconnect();
 
-      slider.removeEventListener("mouseenter", handleMouseEnter);
-      slider.removeEventListener("mouseleave", handleMouseLeave);
-      slider.removeEventListener("touchstart", handleTouchStart);
-      slider.removeEventListener("touchend", handleTouchEnd);
-      slider.removeEventListener("touchcancel", handleTouchEnd);
+      slider.removeEventListener("mouseenter", pause);
+      slider.removeEventListener("mouseleave", resume);
     };
   }, []);
 
@@ -128,7 +116,6 @@ export default function DesignShowcase() {
     >
       <div className="mx-auto max-w-7xl">
 
-        {/* Heading */}
         <div className="mb-8 sm:mb-10">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-cyan-400 sm:text-sm">
             Creative Work
@@ -144,14 +131,13 @@ export default function DesignShowcase() {
           </p>
         </div>
 
-        {/* Auto Moving Slider */}
         <div
           ref={sliderRef}
-          className="showcase-slider relative w-full overflow-hidden"
+          className="showcase-slider"
         >
           <div
             ref={trackRef}
-            className="showcase-track flex w-max gap-6"
+            className="showcase-track"
           >
             {scrollingDesigns.map((design, index) => (
               <article
@@ -172,7 +158,7 @@ export default function DesignShowcase() {
                     alt={design.alt}
                     loading="lazy"
                     draggable={false}
-                    className="showcase-image aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    className="aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </a>
 
@@ -200,14 +186,12 @@ export default function DesignShowcase() {
           </div>
         </div>
 
-        {/* Footer */}
         <p className="mt-5 text-center text-xs text-slate-500">
           Explore my creative work
           <span className="ml-2 text-cyan-400">→</span>
         </p>
       </div>
 
-      {/* Responsive Styling */}
       <style>{`
         .showcase-slider {
           position: relative;
@@ -220,17 +204,13 @@ export default function DesignShowcase() {
           display: flex;
           width: max-content;
           gap: 24px;
-          will-change: transform;
           transform: translate3d(0, 0, 0);
+          will-change: transform;
         }
 
         .showcase-card {
           flex: 0 0 320px;
           min-width: 0;
-        }
-
-        .showcase-image {
-          display: block;
         }
 
         @media (max-width: 640px) {
@@ -247,11 +227,6 @@ export default function DesignShowcase() {
           .showcase-card {
             flex: 0 0 78vw;
           }
-
-          .showcase-image {
-            pointer-events: none;
-            -webkit-user-drag: none;
-          }
         }
 
         @media (min-width: 641px) and (max-width: 1024px) {
@@ -262,7 +237,7 @@ export default function DesignShowcase() {
 
         @media (prefers-reduced-motion: reduce) {
           .showcase-track {
-            will-change: auto;
+            will-change: transform !important;
           }
         }
       `}</style>
