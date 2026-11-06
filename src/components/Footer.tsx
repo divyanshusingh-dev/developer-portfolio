@@ -135,7 +135,7 @@ export default function Footer() {
   </span>
 </a>
 <a
-  href="https://wa.me/91XXXXXXXXXX"
+  href="https://wa.me/9473681245"
   target="_blank"
   rel="noopener noreferrer"
   aria-label="Chat with me on WhatsApp"
@@ -160,7 +160,7 @@ export default function Footer() {
   </span>
 </a>
 <a
-  href="https://www.instagram.com/YOUR_USERNAME/"
+  href="https://www.instagram.com/divyanshusingh_0077/"
   target="_blank"
   rel="noopener noreferrer"
   aria-label="Visit my Instagram profile"
@@ -191,10 +191,10 @@ export default function Footer() {
   </span>
 </a>
 <a
-  href="https://www.instagram.com/YOUR_USERNAME/"
+  href="mailto:divyanshusingh2006r@gmail.com"
   target="_blank"
   rel="noopener noreferrer"
-  aria-label="Visit my Instagram profile"
+  aria-label="Send me an email"
   className={`${socialLinkClass} group`}
 >
   <svg
@@ -207,12 +207,11 @@ export default function Footer() {
     strokeLinejoin="round"
     aria-hidden="true"
   >
-    <rect x="3" y="3" width="18" height="18" rx="5" />
-    <circle cx="12" cy="12" r="4" />
-    <circle cx="17.5" cy="6.5" r="0.8" fill="currentColor" stroke="none" />
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="m3 7 9 6 9-6" />
   </svg>
 
-  <span>Instagram</span>
+  <span>Email</span>
 
   <span
     aria-hidden="true"
