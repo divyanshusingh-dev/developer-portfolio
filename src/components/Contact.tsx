@@ -21,9 +21,8 @@ import {
   RotateCcw,
   Send,
   X,
-  Sparkles,
   ExternalLink,
-  Clock,
+  
 } from "lucide-react";
 
 const API_BASE =

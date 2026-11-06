@@ -1,5 +1,5 @@
 ﻿
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type TouchEvent } from "react";
 
 const navLinks = [
   { name: "Home", href: "#home" },
@@ -15,11 +15,15 @@ const navLinks = [
 ];
 
 const primaryLinks = navLinks.filter((link) =>
-  ["Home", "About", "Skills", "Projects", "Design Showcase", "Contact"].includes(link.name)
+  ["Home", "About", "Skills", "Projects", "Design Showcase", "Contact"].includes(
+    link.name
+  )
 );
 
 const moreLinks = navLinks.filter((link) =>
-  ["GitHub Activity", "Certifications", "Experience", "Education"].includes(link.name)
+  ["GitHub Activity", "Certifications", "Experience", "Education"].includes(
+    link.name
+  )
 );
 
 const moreIcons: Record<string, string> = {
@@ -33,21 +37,44 @@ function Navbar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [isNavbarVisible, setIsNavbarVisible] = useState(true);
   const [activeSection, setActiveSection] = useState("home");
   const [scrollProgress, setScrollProgress] = useState(0);
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
+  const headerRef = useRef<HTMLElement | null>(null);
+  const previousScrollY = useRef(0);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+
+  // Scroll Detection + Smart Navbar
   useEffect(() => {
     const handleScroll = () => {
       const scrollY = window.scrollY;
       const documentHeight =
         document.documentElement.scrollHeight - window.innerHeight;
 
+      const direction = scrollY - previousScrollY.current;
+
       setIsScrolled(scrollY > 30);
+      setShowScrollTop(scrollY > 400);
+
       setScrollProgress(
         documentHeight > 0
           ? Math.min(100, (scrollY / documentHeight) * 100)
           : 0
       );
+
+      if (scrollY < 100) {
+        setIsNavbarVisible(true);
+      } else if (direction > 5) {
+        setIsNavbarVisible(false);
+        setIsMenuOpen(false);
+        setIsMoreOpen(false);
+      } else if (direction < -5) {
+        setIsNavbarVisible(true);
+      }
+
+      previousScrollY.current = scrollY;
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -56,6 +83,7 @@ function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  // Active Section Detection
   useEffect(() => {
     const sections = navLinks
       .map((link) => document.querySelector(link.href))
@@ -84,6 +112,25 @@ function Navbar() {
     return () => observer.disconnect();
   }, []);
 
+  // Click Outside to Close
+  useEffect(() => {
+    const handleOutsideClick = (event: PointerEvent) => {
+      if (
+        headerRef.current &&
+        !headerRef.current.contains(event.target as Node)
+      ) {
+        setIsMoreOpen(false);
+        setIsMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handleOutsideClick);
+
+    return () =>
+      document.removeEventListener("pointerdown", handleOutsideClick);
+  }, []);
+
+  // Escape Key Support
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
@@ -93,8 +140,34 @@ function Navbar() {
     };
 
     window.addEventListener("keydown", handleEscape);
+
     return () => window.removeEventListener("keydown", handleEscape);
   }, []);
+
+  // Mobile Swipe to Close
+  const handleTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    const touch = event.touches[0];
+
+    touchStart.current = {
+      x: touch.clientX,
+      y: touch.clientY,
+    };
+  };
+
+  const handleTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    if (!touchStart.current) return;
+
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - touchStart.current.x;
+    const deltaY = touch.clientY - touchStart.current.y;
+
+    if (deltaX < -70 && Math.abs(deltaX) > Math.abs(deltaY)) {
+      setIsMenuOpen(false);
+      setIsMoreOpen(false);
+    }
+
+    touchStart.current = null;
+  };
 
   const handleLinkClick = () => {
     setIsMenuOpen(false);
@@ -108,6 +181,14 @@ function Navbar() {
     isLinkActive(link.href)
   );
 
+  // Scroll to Top
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
   return (
     <>
       {/* Top Scroll Progress */}
@@ -119,7 +200,14 @@ function Navbar() {
       </div>
 
       {/* Navbar Wrapper */}
-      <header className="fixed left-0 top-0 z-50 w-full px-3 pt-3 sm:px-5 sm:pt-4">
+      <header
+        ref={headerRef}
+        className={`fixed left-0 top-0 z-50 w-full px-3 pt-3 transition-transform duration-300 ease-in-out sm:px-5 sm:pt-4 ${
+          isNavbarVisible
+            ? "translate-y-0"
+            : "-translate-y-[120%]"
+        }`}
+      >
         <nav
           className={`relative mx-auto flex h-[64px] w-full max-w-[1380px] items-center justify-between gap-3 rounded-full border px-4 transition-all duration-500 sm:px-6 ${
             isScrolled
@@ -153,6 +241,7 @@ function Navbar() {
                   key={link.name}
                   href={link.href}
                   onClick={handleLinkClick}
+                  aria-current={active ? "location" : undefined}
                   className={`relative whitespace-nowrap rounded-full px-2.5 py-2.5 text-[12px] font-medium transition-all duration-300 xl:px-3 xl:text-[13px] ${
                     active
                       ? "bg-white/[0.10] text-white"
@@ -186,6 +275,7 @@ function Navbar() {
                 }`}
               >
                 More
+
                 <svg
                   className={`h-3 w-3 transition-transform duration-300 ${
                     isMoreOpen ? "rotate-180" : ""
@@ -202,54 +292,59 @@ function Navbar() {
                 </svg>
               </button>
 
-              {isMoreOpen && (
-                <div className="absolute right-0 top-full z-50 w-[255px] pt-3">
-                  <div className="overflow-hidden rounded-[20px] border border-white/[0.10] bg-slate-950/95 p-2 shadow-[0_20px_60px_rgba(0,0,0,0.4)] backdrop-blur-2xl">
-                    <div className="flex items-center justify-between px-3 pb-3 pt-2">
-                      <span className="text-[10px] font-bold uppercase tracking-[1.8px] text-slate-500">
-                        Explore Portfolio
-                      </span>
-                      <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
-                    </div>
-
-                    {moreLinks.map((link) => {
-                      const active = isLinkActive(link.href);
-
-                      return (
-                        <a
-                          key={link.name}
-                          href={link.href}
-                          onClick={handleLinkClick}
-                          className={`group flex items-center gap-3 rounded-xl px-3 py-3 transition-all duration-200 ${
-                            active
-                              ? "bg-cyan-400/[0.08] text-cyan-300"
-                              : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
-                          }`}
-                        >
-                          <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.04] text-base text-cyan-400 transition-colors group-hover:border-cyan-400/20 group-hover:bg-cyan-400/10">
-                            {moreIcons[link.name]}
-                          </span>
-
-                          <span className="text-[13px] font-medium">
-                            {link.name}
-                          </span>
-
-                          <svg
-                            className="ml-auto h-3.5 w-3.5 text-slate-600 transition-all group-hover:translate-x-0.5 group-hover:text-cyan-400"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            aria-hidden="true"
-                          >
-                            <path d="M7 17 17 7M7 7h10v10" />
-                          </svg>
-                        </a>
-                      );
-                    })}
+              {/* Animated Dropdown */}
+              <div
+                className={`absolute right-0 top-full z-50 w-[255px] pt-3 transition-all duration-200 ${
+                  isMoreOpen
+                    ? "visible translate-y-0 opacity-100"
+                    : "invisible -translate-y-2 opacity-0"
+                }`}
+              >
+                <div className="overflow-hidden rounded-[20px] border border-white/[0.10] bg-slate-950/95 p-2 shadow-[0_20px_60px_rgba(0,0,0,0.4)] backdrop-blur-2xl">
+                  <div className="flex items-center justify-between px-3 pb-3 pt-2">
+                    <span className="text-[10px] font-bold uppercase tracking-[1.8px] text-slate-500">
+                      Explore Portfolio
+                    </span>
+                    <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
                   </div>
+
+                  {moreLinks.map((link) => {
+                    const active = isLinkActive(link.href);
+
+                    return (
+                      <a
+                        key={link.name}
+                        href={link.href}
+                        onClick={handleLinkClick}
+                        className={`group flex items-center gap-3 rounded-xl px-3 py-3 transition-all duration-200 ${
+                          active
+                            ? "bg-cyan-400/[0.08] text-cyan-300"
+                            : "text-slate-300 hover:bg-white/[0.05] hover:text-white"
+                        }`}
+                      >
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/[0.06] bg-white/[0.04] text-base text-cyan-400 transition-colors group-hover:border-cyan-400/20 group-hover:bg-cyan-400/10">
+                          {moreIcons[link.name]}
+                        </span>
+
+                        <span className="text-[13px] font-medium">
+                          {link.name}
+                        </span>
+
+                        <svg
+                          className="ml-auto h-3.5 w-3.5 text-slate-600 transition-all group-hover:translate-x-0.5 group-hover:text-cyan-400"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          aria-hidden="true"
+                        >
+                          <path d="M7 17 17 7M7 7h10v10" />
+                        </svg>
+                      </a>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
             </div>
           </div>
 
@@ -335,6 +430,8 @@ function Navbar() {
         {/* Mobile Navigation */}
         <div
           aria-hidden={!isMenuOpen}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
           className={`mx-auto mt-2 w-full max-w-[1380px] overflow-hidden rounded-[24px] border border-white/[0.09] bg-slate-950/95 shadow-[0_20px_50px_rgba(0,0,0,0.35)] backdrop-blur-2xl transition-all duration-300 lg:hidden ${
             isMenuOpen
               ? "max-h-[85vh] overflow-y-auto p-3 opacity-100"
@@ -360,6 +457,7 @@ function Navbar() {
                   href={link.href}
                   tabIndex={isMenuOpen ? 0 : -1}
                   onClick={handleLinkClick}
+                  aria-current={active ? "location" : undefined}
                   className={`flex items-center justify-between rounded-xl px-4 py-3 text-[13px] font-medium transition-all duration-200 ${
                     active
                       ? "bg-cyan-400/[0.08] text-cyan-300"
@@ -413,6 +511,10 @@ function Navbar() {
             </div>
 
             <p className="pb-1 pt-2 text-center text-[10px] text-slate-600">
+              Swipe left to close
+            </p>
+
+            <p className="pb-1 text-center text-[10px] text-slate-600">
               Designed & Developed by{" "}
               <span className="font-medium text-cyan-400">
                 Divyanshu Singh
@@ -421,6 +523,33 @@ function Navbar() {
           </div>
         </div>
       </header>
+
+      {/* Floating Scroll To Top */}
+      <button
+        type="button"
+        onClick={scrollToTop}
+        aria-label="Scroll to top"
+        title="Back to top"
+        tabIndex={showScrollTop ? 0 : -1}
+        className={`fixed bottom-6 right-5 z-[60] flex h-11 w-11 items-center justify-center rounded-full border border-cyan-400/20 bg-slate-950/90 text-cyan-400 shadow-[0_5px_25px_rgba(0,0,0,0.3)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/50 hover:bg-cyan-400 hover:text-slate-950 hover:shadow-[0_5px_25px_rgba(34,211,238,0.2)] sm:bottom-8 sm:right-8 ${
+          showScrollTop
+            ? "translate-y-0 scale-100 opacity-100"
+            : "pointer-events-none translate-y-5 scale-75 opacity-0"
+        }`}
+      >
+        <svg
+          className="h-5 w-5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          <path d="m18 15-6-6-6 6" />
+        </svg>
+      </button>
     </>
   );
 }
