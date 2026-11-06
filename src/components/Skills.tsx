@@ -146,9 +146,9 @@ function Skills() {
 
           <div className="flex items-center gap-3 md:pb-2">
             <div className="flex -space-x-1.5">
-              <span className="h-3 w-3 rounded-full border-2 border-[#080b12] bg-cyan-400" />
-              <span className="h-3 w-3 rounded-full border-2 border-[#080b12] bg-violet-400" />
-              <span className="h-3 w-3 rounded-full border-2 border-[#080b12] bg-blue-400" />
+              <span className="h-3 w-3 rounded-full border-2 border-[#080b12] bg-white" />
+              <span className="h-3 w-3 rounded-full border-2 border-[#080b12] bg-white" />
+              <span className="h-3 w-3 rounded-full border-2 border-[#080b12] bg-white" />
             </div>
 
             <span className="font-mono text-[10px] uppercase tracking-[0.17em] text-slate-500">

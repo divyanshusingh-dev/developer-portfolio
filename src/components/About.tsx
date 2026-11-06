@@ -315,7 +315,7 @@ function About() {
                   Thoughtful solutions.
                   <br />
 
-                  <span className="about-gradient-text">
+                  <span className="">
                     Continuous growth.
                   </span>
                 </p>
