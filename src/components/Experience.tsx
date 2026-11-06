@@ -88,6 +88,7 @@ function Experience() {
     >
       {/* Background Effects */}
       <div className="pointer-events-none absolute -left-48 top-20 -z-10 h-96 w-96 rounded-full bg-cyan-500/[0.07] blur-[130px]" />
+
       <div className="pointer-events-none absolute -right-48 bottom-0 -z-10 h-96 w-96 rounded-full bg-blue-500/[0.06] blur-[130px]" />
 
       <div className="mx-auto max-w-7xl">
@@ -102,6 +103,7 @@ function Experience() {
           <div className="mb-5 inline-flex items-center gap-2.5 rounded-full border border-cyan-400/20 bg-cyan-400/[0.06] px-4 py-2">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-cyan-400 opacity-50" />
+
               <span className="relative inline-flex h-2 w-2 rounded-full bg-cyan-400" />
             </span>
 
@@ -110,10 +112,10 @@ function Experience() {
             </span>
           </div>
 
-          
-<h2 className="text-3xl font-bold text-white sm:text-4xl">
+          <h2 className="text-3xl font-bold text-white sm:text-4xl">
             Where I've Worked
           </h2>
+
           <p className="mt-6 max-w-2xl text-sm leading-8 text-slate-400 sm:text-base">
             Every experience is an opportunity to learn, create, and grow.
             Here's a look at my professional journey and the creative work
@@ -128,7 +130,7 @@ function Experience() {
 
           {/* Timeline Item */}
           <div
-            className={`relative sm:pl-16 transition-all duration-1000 ${
+            className={`relative transition-all duration-1000 sm:pl-16 ${
               isVisible
                 ? "translate-x-0 opacity-100"
                 : "translate-x-8 opacity-0"
@@ -161,6 +163,7 @@ function Experience() {
                         aria-hidden="true"
                       >
                         <rect x="3" y="7" width="18" height="14" rx="2" />
+
                         <path d="M8 7V4h8v3M3 12h18M10 12v2h4v-2" />
                       </svg>
                     </div>
@@ -170,9 +173,9 @@ function Experience() {
                         Professional Experience
                       </p>
 
-                      <h4 className="text-1xl font-medium tracking-tight text-white sm:text-2xl">
+                      <h4 className="text-xl font-medium tracking-tight text-white sm:text-2xl">
                         Graphic Designer
-                      </h4  >
+                      </h4>
 
                       <p className="mt-3 text-sm font-semibold text-slate-300 sm:text-base">
                         Swami Vivekanand Group of Institutes
@@ -206,6 +209,7 @@ function Experience() {
                     <h4 className="whitespace-nowrap text-xs font-bold uppercase tracking-[0.17em] text-slate-300">
                       What I Do
                     </h4>
+
                     <div className="h-px flex-1 bg-slate-800" />
                   </div>
 
@@ -242,6 +246,7 @@ function Experience() {
                     <h4 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
                       Tools & Technologies
                     </h4>
+
                     <div className="h-px flex-1 bg-slate-800" />
                   </div>
 
@@ -283,25 +288,32 @@ function Experience() {
           {highlights.map((item) => (
             <div
               key={item.number}
-              className="group relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/40 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/30 hover:bg-slate-900/70"
+              className="group relative isolate overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/40 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-cyan-400/30 hover:bg-slate-900/70"
             >
-              <div className="absolute -right-5 -top-7 text-6xl font-black text-slate-800/30 transition-colors group-hover:text-cyan-400/[0.07]">
+              {/* Decorative Number - FIXED */}
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute right-3 top-2 z-0 select-none text-5xl font-black leading-none text-cyan-400/[0.07] transition-colors duration-300 group-hover:text-cyan-400/[0.12] sm:right-4 sm:top-3 sm:text-6xl"
+              >
                 {item.number}
+              </span>
+
+              {/* Card Content */}
+              <div className="relative z-10">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
+                  {item.label}
+                </p>
+
+                <h4 className="mt-4 text-lg font-medium text-white transition-colors group-hover:text-cyan-300">
+                  {item.value}
+                </h4>
+
+                <p className="mt-2 text-xs text-slate-500">
+                  {item.detail}
+                </p>
+
+                <div className="mt-5 h-px w-10 bg-cyan-400/50 transition-all duration-300 group-hover:w-full" />
               </div>
-
-              <p className="relative text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">
-                {item.label}
-              </p>
-
-              <h4 className="relative mt-4 text-lg font-medium text-white transition-colors group-hover:text-cyan-300">
-                {item.value}
-              </h4>
-
-              <p className="relative mt-2 text-xs text-slate-500">
-                {item.detail}
-              </p>
-
-              <div className="mt-5 h-px w-10 bg-cyan-400/50 transition-all duration-300 group-hover:w-full" />
             </div>
           ))}
         </div>
