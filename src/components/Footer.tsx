@@ -111,6 +111,118 @@ export default function Footer() {
                 LinkedIn
                 <span aria-hidden="true" className="text-xs">↗</span>
               </a>
+              <a
+  href="https://x.com/divyanshuxsingh"
+  target="_blank"
+  rel="noopener noreferrer"
+  aria-label="Visit my X profile"
+  className={`${socialLinkClass} group`}
+>
+  <svg
+    className="h-4 w-4 transition-transform duration-300 group-hover:scale-110"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path d="M18.9 2H22l-6.8 7.8L23.2 22h-6.3L12 14.6 5.6 22H2.5l7.3-8.4L1.8 2h6.5l4.5 6.7L18.9 2Zm-1.1 18h1.7L7.3 3.9H5.5L17.8 20Z" />
+  </svg>
+
+  <span>Twitter</span>
+
+  <span
+    aria-hidden="true"
+    className="text-xs transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+  >
+    ↗
+  </span>
+</a>
+<a
+  href="https://wa.me/91XXXXXXXXXX"
+  target="_blank"
+  rel="noopener noreferrer"
+  aria-label="Chat with me on WhatsApp"
+  className={`${socialLinkClass} group`}
+>
+  <svg
+    className="h-4 w-4 transition-transform duration-300 group-hover:scale-110"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    aria-hidden="true"
+  >
+    <path d="M12.04 2a9.93 9.93 0 0 0-8.52 15.03L2 22l5.13-1.34A9.93 9.93 0 1 0 12.04 2Zm0 18.02a8.08 8.08 0 0 1-4.12-1.13l-.3-.18-3.06.8.82-2.98-.2-.31a8.1 8.1 0 1 1 6.86 3.8Zm4.45-6.06c-.24-.12-1.43-.7-1.65-.78-.22-.08-.38-.12-.54.12-.16.24-.62.78-.76.94-.14.16-.28.18-.52.06-.24-.12-1.02-.38-1.94-1.2-.72-.64-1.2-1.43-1.34-1.67-.14-.24-.02-.37.1-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.2-.47-.4-.4-.54-.41h-.46c-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.7 2.6 4.12 3.65.58.25 1.03.4 1.38.51.58.18 1.11.16 1.53.1.46-.07 1.43-.58 1.63-1.14.2-.56.2-1.04.14-1.14-.06-.1-.22-.16-.46-.28Z" />
+  </svg>
+
+  <span>WhatsApp</span>
+
+  <span
+    aria-hidden="true"
+    className="text-xs transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+  >
+    ↗
+  </span>
+</a>
+<a
+  href="https://www.instagram.com/YOUR_USERNAME/"
+  target="_blank"
+  rel="noopener noreferrer"
+  aria-label="Visit my Instagram profile"
+  className={`${socialLinkClass} group`}
+>
+  <svg
+    className="h-4 w-4 transition-transform duration-300 group-hover:scale-110"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="3" y="3" width="18" height="18" rx="5" />
+    <circle cx="12" cy="12" r="4" />
+    <circle cx="17.5" cy="6.5" r="0.8" fill="currentColor" stroke="none" />
+  </svg>
+
+  <span>Instagram</span>
+
+  <span
+    aria-hidden="true"
+    className="text-xs transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+  >
+    ↗
+  </span>
+</a>
+<a
+  href="https://www.instagram.com/YOUR_USERNAME/"
+  target="_blank"
+  rel="noopener noreferrer"
+  aria-label="Visit my Instagram profile"
+  className={`${socialLinkClass} group`}
+>
+  <svg
+    className="h-4 w-4 transition-transform duration-300 group-hover:scale-110"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    <rect x="3" y="3" width="18" height="18" rx="5" />
+    <circle cx="12" cy="12" r="4" />
+    <circle cx="17.5" cy="6.5" r="0.8" fill="currentColor" stroke="none" />
+  </svg>
+
+  <span>Instagram</span>
+
+  <span
+    aria-hidden="true"
+    className="text-xs transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+  >
+    ↗
+  </span>
+</a>
             </div>
           </div>
         </div>
