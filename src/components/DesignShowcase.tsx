@@ -1,3 +1,4 @@
+
 const designs = [
   {
     title: "College Event Poster",
@@ -28,6 +29,8 @@ export default function DesignShowcase() {
       className="relative overflow-hidden px-5 py-16 sm:px-10 sm:py-20 lg:px-16"
     >
       <div className="mx-auto max-w-7xl">
+
+        {/* Section Heading */}
         <div className="mb-8 sm:mb-10">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-cyan-400 sm:text-sm">
             Creative Work
@@ -43,6 +46,7 @@ export default function DesignShowcase() {
           </p>
         </div>
 
+        {/* Infinite Auto Slider */}
         <div className="showcase-slider">
           <div className="showcase-track">
             {scrollingDesigns.map((design, index) => (
@@ -66,7 +70,7 @@ export default function DesignShowcase() {
                     alt={design.alt}
                     loading="lazy"
                     draggable={false}
-                    className="aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    className="showcase-image aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 </a>
 
@@ -94,49 +98,38 @@ export default function DesignShowcase() {
           </div>
         </div>
 
+        {/* Footer Text */}
         <p className="mt-5 text-center text-xs text-slate-500">
           Explore my creative work
           <span className="ml-2 text-cyan-400">→</span>
         </p>
       </div>
 
+      {/* Slider CSS */}
       <style>{`
         .showcase-slider {
           position: relative;
           width: 100%;
           overflow: hidden;
           isolation: isolate;
-          -webkit-mask-image: linear-gradient(
-            to right,
-            transparent,
-            black 3%,
-            black 97%,
-            transparent
-          );
-          mask-image: linear-gradient(
-            to right,
-            transparent,
-            black 3%,
-            black 97%,
-            transparent
-          );
         }
 
         .showcase-track {
-          --loop-gap: 24px;
-
           display: flex;
           width: max-content;
-          gap: var(--loop-gap);
-          animation: showcase-scroll 24s linear infinite;
+          gap: 24px;
+          animation: showcase-scroll 25s linear infinite;
           will-change: transform;
           transform: translate3d(0, 0, 0);
-          backface-visibility: hidden;
         }
 
         .showcase-card {
           flex: 0 0 320px;
           min-width: 0;
+        }
+
+        .showcase-image {
+          display: block;
         }
 
         @keyframes showcase-scroll {
@@ -146,44 +139,35 @@ export default function DesignShowcase() {
 
           to {
             transform: translate3d(
-              calc(-50% - (var(--loop-gap) / 2)),
+              calc(-50% - 12px),
               0,
               0
             );
           }
         }
 
+        /* Desktop Hover Pause */
         @media (hover: hover) and (pointer: fine) {
           .showcase-slider:hover .showcase-track {
             animation-play-state: paused;
           }
 
-          .showcase-card:hover img {
+          .showcase-card:hover .showcase-image {
             transform: scale(1.05);
           }
         }
 
+        /* Mobile Responsive */
         @media (max-width: 640px) {
           .showcase-slider {
-            -webkit-mask-image: linear-gradient(
-              to right,
-              transparent,
-              black 1%,
-              black 99%,
-              transparent
-            );
-            mask-image: linear-gradient(
-              to right,
-              transparent,
-              black 1%,
-              black 99%,
-              transparent
-            );
+            width: calc(100% + 20px);
+            margin-left: -10px;
+            padding: 0 10px;
           }
 
           .showcase-track {
-            --loop-gap: 16px;
-            animation-duration: 18s;
+            gap: 16px;
+            animation: showcase-scroll 18s linear infinite;
             animation-play-state: running;
           }
 
@@ -191,14 +175,23 @@ export default function DesignShowcase() {
             flex: 0 0 min(260px, 78vw);
           }
 
-          .showcase-card img {
+          .showcase-image {
+            pointer-events: none;
             -webkit-user-drag: none;
           }
         }
 
+        /* Tablet */
+        @media (min-width: 641px) and (max-width: 1024px) {
+          .showcase-card {
+            flex: 0 0 280px;
+          }
+        }
+
+        /* Reduced Motion Accessibility */
         @media (prefers-reduced-motion: reduce) {
           .showcase-track {
-            animation-duration: 36s;
+            animation: none !important;
           }
         }
       `}</style>
