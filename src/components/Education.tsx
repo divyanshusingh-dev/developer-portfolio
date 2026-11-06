@@ -444,7 +444,7 @@ function Education() {
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0">
                 <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-cyan-400">
-                  Bachelor of Computer Applications
+                  Academic Journey
                 </p>
 
                 <h3 className="text-xl font-medium text-white sm:text-xl">

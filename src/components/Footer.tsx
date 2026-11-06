@@ -39,9 +39,7 @@ export default function Footer() {
             </Link>
 
             <p className="mt-4 max-w-sm text-sm leading-7 text-slate-400">
-              Aspiring Software Developer passionate about building
-              useful digital experiences through code, creativity,
-              and continuous learning.
+              Exploring the world of software development, blending creativity with technology to craft modern web experiences, intuitive interfaces, and innovative digital solutions.
             </p>
 
             <a
