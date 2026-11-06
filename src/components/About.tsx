@@ -300,10 +300,10 @@ function About() {
               </div>
 
               {/* Philosophy panel */}
-              <div className="about-philosophy relative mt-7 overflow-hidden border border-white/[0.08] bg-white/[0.02] p-5 transition-all duration-500 hover:border-cyan-400/25 hover:bg-white/[0.035] sm:p-6">
-                <div className="about-line absolute left-0 top-0 h-px w-1/3 bg-gradient-to-r from-cyan-400 to-violet-400" />
+              <div className="about-philosophy relative mt-7 overflow-hidden border border-white/[0.08] bg-white/[0.02] p-5 transition-all duration-500 hover:border-green-400/25 hover:bg-white/[0.035] sm:p-6">
+                <div className="about-line absolute left-0 top-0 h-px w-1/3 bg-gradient-to-r from-green-400 to-green-400" />
 
-                <div className="about-corner absolute right-0 top-0 h-16 w-16 border-r border-t border-violet-400/20" />
+                <div className="about-corner absolute right-0 top-0 h-16 w-16 border-r border-t border-green-400/20" />
 
                 <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-slate-500">
                   The mindset
@@ -321,9 +321,9 @@ function About() {
                 </p>
 
                 <div className="mt-5 flex items-center gap-2">
-                  <span className="h-1 w-7 rounded-full bg-cyan-400" />
-                  <span className="h-1 w-3 rounded-full bg-violet-400/60" />
-                  <span className="h-1 w-1 rounded-full bg-slate-500" />
+                  <span className="h-1 w-7 rounded-full bg-green-400" />
+                  <span className="h-1 w-3 rounded-full bg-green-400/60" />
+                  <span className="h-1 w-1 rounded-full bg-green-500" />
                 </div>
               </div>
             </div>
