@@ -8,7 +8,7 @@ const WhatsAppButton: React.FC = () => {
   const phoneNumber = "9473681245";
 
   const message =
-    "Hello Divyanshu! I visited your portfolio website and would like to connect with you.";
+    "Hello Mr. Divyanshu Singh, I came across your portfolio and would appreciate the opportunity to connect with you regarding a potential inquiry or collaboration.";
 
   const whatsappURL = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(
     message
