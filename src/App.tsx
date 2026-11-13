@@ -20,12 +20,15 @@ import PrivacyPolicy from "./components/PrivacyPolicy";
 import TermsOfUse from "./components/TermsOfUse";
 
 import PortfolioAssistant from "./components/PortfolioAssistant";
+import WhatsAppButton from "./components/WhatsAppButton";
 
 function PortfolioLayout() {
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-[#020617] text-white">
+
       {/* GLOBAL BACKGROUND */}
       <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+
         {/* Base */}
         <div className="absolute inset-0 bg-[#020617]" />
 
@@ -124,6 +127,7 @@ function PortfolioLayout() {
 
       {/* WEBSITE CONTENT */}
       <div className="relative z-10">
+
         <Navbar />
 
         <main>
@@ -140,10 +144,15 @@ function PortfolioLayout() {
         </main>
 
         <Footer />
+
       </div>
+
+      {/* WHATSAPP FLOATING BUTTON */}
+      <WhatsAppButton />
 
       {/* AI ASSISTANT - HOMEPAGE ONLY */}
       <PortfolioAssistant />
+
     </div>
   );
 }
@@ -152,6 +161,7 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+
         {/* Main Portfolio */}
         <Route path="/" element={<PortfolioLayout />} />
 
@@ -165,6 +175,7 @@ function App() {
         <Route path="/copyright" element={<Copyright />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms-of-use" element={<TermsOfUse />} />
+
       </Routes>
     </BrowserRouter>
   );
