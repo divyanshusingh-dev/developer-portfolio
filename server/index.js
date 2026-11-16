@@ -3810,44 +3810,47 @@ app.get(
 // PUBLIC PDF STATUS
 // --------------------------------------------------
 
+
+// --------------------------------------------------
+// PUBLIC PDF STATUS
+// --------------------------------------------------
+
 app.get(
   "/api/protected-pdf/status/:fileName",
   async (req, res) => {
+    console.log(
+      "[PDF STATUS ROUTE HIT]",
+      req.method,
+      req.originalUrl
+    );
+
     try {
-      const fileName =
-        decodeURIComponent(
-          req.params.fileName
-        );
+      const fileName = decodeURIComponent(
+        req.params.fileName
+      );
 
-      const file =
-        await getPdfByFileName(
-          fileName
-        );
+      // Check whether PDF exists in database
+      const file = await getPdfByFileName(fileName);
 
-      const settings =
-        await getPdfSecuritySettings();
+      // Get PDF security settings
+      const settings = await getPdfSecuritySettings();
 
-      const fileSetting =
-        settings.files.find(
-          (item) =>
-            item.fileName ===
-            fileName
-        );
+      const fileSetting = settings.files.find(
+        (item) => item.fileName === fileName
+      );
 
-      // A missing PDF is a normal availability state for public status checks.
-      // Return HTTP 200 with hasFile/available false so the frontend can hide
-      // the unavailable document without logging a failed network request.
+      // Find matching PDF slot
+      const slotKey = findSlotKeyByFileName(fileName);
+
+      // PDF is not uploaded
+      // Return 200 instead of 404
       if (!file) {
-        const slotKey =
-          findSlotKeyByFileName(
-            fileName
-          );
-
-        return res.json({
+        return res.status(200).json({
+          success: true,
           fileName,
           protected: Boolean(
             settings.masterProtected &&
-              fileSetting?.protected
+            fileSetting?.protected
           ),
           enabled: fileSetting?.enabled !== false,
           available: false,
@@ -3856,44 +3859,29 @@ app.get(
             ? PDF_SLOTS[slotKey].displayName
             : fileName,
           slot: slotKey || null,
+          message: "PDF has not been uploaded yet.",
         });
       }
 
-      const protectedNow =
-        Boolean(
-          settings.masterProtected &&
-            fileSetting?.protected
-        );
+      // PDF exists
+      const protectedNow = Boolean(
+        settings.masterProtected &&
+        fileSetting?.protected
+      );
 
       const enabledNow =
-        fileSetting?.enabled !==
-        false;
+        fileSetting?.enabled !== false;
 
-      const slotKey =
-        findSlotKeyByFileName(
-          fileName
-        );
-
-      return res.json({
+      return res.status(200).json({
+        success: true,
         fileName,
-
-        protected:
-          protectedNow,
-
-        enabled:
-          enabledNow,
-
-        available:
-          enabledNow,
-
+        protected: protectedNow,
+        enabled: enabledNow,
+        available: enabledNow,
         hasFile: true,
-
         displayName:
-          file.displayName ||
-          fileName,
-
-        slot:
-          slotKey || null,
+          file.displayName || fileName,
+        slot: slotKey || null,
       });
     } catch (error) {
       console.error(
@@ -3902,12 +3890,14 @@ app.get(
       );
 
       return res.status(500).json({
+        success: false,
         message:
           "Unable to check PDF protection status.",
       });
     }
   }
 );
+
 
 // --------------------------------------------------
 // PUBLIC PDF DOWNLOAD

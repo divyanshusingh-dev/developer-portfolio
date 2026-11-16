@@ -42,11 +42,7 @@ const ProtectedPdf = mongoose.model("ProtectedPdf", protectedPdfSchema);
 const protectedPdfFolder = path.join(__dirname, "protected-pdfs");
 
 const pdfFiles = [
-  "10th-marksheet.pdf",
-  "12th-marksheet.pdf",
-  "1st-semester-dmc.pdf",
-  "2nd-semester-dmc.pdf",
-  "resume.pdf",
+  
 ];
 
 async function uploadProtectedPdfs() {

@@ -29,12 +29,8 @@ const GITHUB_USERNAME = "divyanshusingh-dev";
 const GITHUB_API = "https://api.github.com";
 const MAX_VISIBLE_REPOS = 6;
 
-async function fetchGitHubJson<T>(
-  url: string,
-  signal: AbortSignal
-): Promise<T> {
+async function fetchGitHubJson<T>(url: string): Promise<T> {
   const response = await fetch(url, {
-    signal,
     headers: {
       Accept: "application/vnd.github+json",
     },
@@ -238,8 +234,10 @@ function GitHubActivity() {
   }, [loading, error, repos.length, selectedLanguage]);
 
   // Fetch public repositories and profile statistics.
+  // A cancellation flag prevents stale state updates without aborting fetches.
+  // This also avoids noisy AbortError reports from browser inspector extensions.
   useEffect(() => {
-    const controller = new AbortController();
+    let cancelled = false;
 
     async function loadGitHubData() {
       setLoading(true);
@@ -248,16 +246,15 @@ function GitHubActivity() {
       try {
         const [reposResult, profileResult] = await Promise.allSettled([
           fetchGitHubJson<GitHubRepo[]>(
-            `${GITHUB_API}/users/${GITHUB_USERNAME}/repos?sort=updated&per_page=100`,
-            controller.signal
+            `${GITHUB_API}/users/${GITHUB_USERNAME}/repos?sort=updated&per_page=100`
           ),
           fetchGitHubJson<GitHubProfile>(
-            `${GITHUB_API}/users/${GITHUB_USERNAME}`,
-            controller.signal
+            `${GITHUB_API}/users/${GITHUB_USERNAME}`
           ),
         ]);
 
-        if (controller.signal.aborted) return;
+        // Ignore results belonging to an old render or an unmounted component.
+        if (cancelled) return;
 
         if (reposResult.status === "rejected") {
           throw reposResult.reason instanceof Error
@@ -274,19 +271,15 @@ function GitHubActivity() {
           setProfile(null);
         }
       } catch (err) {
-        if (
-          !controller.signal.aborted &&
-          err instanceof Error &&
-          err.name !== "AbortError"
-        ) {
-          setError(err.message);
-        } else if (
-          !controller.signal.aborted
-        ) {
-          setError("Unable to load GitHub data. Please try again.");
-        }
+        if (cancelled) return;
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Unable to load GitHub data. Please try again."
+        );
       } finally {
-        if (!controller.signal.aborted) {
+        if (!cancelled) {
           setLoading(false);
         }
       }
@@ -294,7 +287,9 @@ function GitHubActivity() {
 
     void loadGitHubData();
 
-    return () => controller.abort();
+    return () => {
+      cancelled = true;
+    };
   }, [retryKey]);
 
   const languages = useMemo(() => {

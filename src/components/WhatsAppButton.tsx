@@ -5,7 +5,9 @@ import "./WhatsAppButton.css";
 const WhatsAppButton: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
 
-  const phoneNumber = "9473681245";
+  // अपना WhatsApp नंबर country code के साथ डालें।
+  // India के लिए 91 + 10 digit mobile number.
+  const phoneNumber = "919473681245";
 
   const message =
     "Hello Mr. Divyanshu Singh, I came across your portfolio and would appreciate the opportunity to connect with you regarding a potential inquiry or collaboration.";
@@ -16,7 +18,6 @@ const WhatsAppButton: React.FC = () => {
 
   return (
     <div className="whatsapp-widget">
-      {/* Welcome Popup */}
       {isOpen && (
         <div className="whatsapp-popup">
           <div className="whatsapp-popup-header">
@@ -62,7 +63,11 @@ const WhatsAppButton: React.FC = () => {
             rel="noopener noreferrer"
             className="whatsapp-start-chat"
           >
-            <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true">
+            <svg
+              viewBox="0 0 32 32"
+              fill="currentColor"
+              aria-hidden="true"
+            >
               <path d="M16.04 3C8.87 3 3.04 8.82 3.04 16c0 2.29.6 4.52 1.74 6.5L3 29l6.67-1.75A13 13 0 1 0 16.04 3zm0 23.5c-1.98 0-3.92-.53-5.6-1.54l-.4-.24-3.95 1.04 1.05-3.85-.26-.41A10.47 10.47 0 1 1 16.04 26.5z" />
             </svg>
             Start WhatsApp Chat
@@ -70,7 +75,6 @@ const WhatsAppButton: React.FC = () => {
         </div>
       )}
 
-      {/* Floating Button */}
       <button
         type="button"
         className="whatsapp-float"
@@ -79,13 +83,14 @@ const WhatsAppButton: React.FC = () => {
         aria-expanded={isOpen}
       >
         <span className="whatsapp-ring" aria-hidden="true" />
+
         <span
           className="whatsapp-ring whatsapp-ring-delay"
           aria-hidden="true"
         />
+
         <span className="whatsapp-status-dot" aria-hidden="true" />
 
-        {/* WhatsApp Icon - Always Visible */}
         <svg
           className="whatsapp-icon"
           viewBox="0 0 32 32"
