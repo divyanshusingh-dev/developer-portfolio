@@ -3824,13 +3824,6 @@ app.get(
           fileName
         );
 
-      if (!file) {
-        return res.status(404).json({
-          message:
-            "PDF not found.",
-        });
-      }
-
       const settings =
         await getPdfSecuritySettings();
 
@@ -3840,6 +3833,31 @@ app.get(
             item.fileName ===
             fileName
         );
+
+      // A missing PDF is a normal availability state for public status checks.
+      // Return HTTP 200 with hasFile/available false so the frontend can hide
+      // the unavailable document without logging a failed network request.
+      if (!file) {
+        const slotKey =
+          findSlotKeyByFileName(
+            fileName
+          );
+
+        return res.json({
+          fileName,
+          protected: Boolean(
+            settings.masterProtected &&
+              fileSetting?.protected
+          ),
+          enabled: fileSetting?.enabled !== false,
+          available: false,
+          hasFile: false,
+          displayName: slotKey
+            ? PDF_SLOTS[slotKey].displayName
+            : fileName,
+          slot: slotKey || null,
+        });
+      }
 
       const protectedNow =
         Boolean(
@@ -3867,6 +3885,8 @@ app.get(
 
         available:
           enabledNow,
+
+        hasFile: true,
 
         displayName:
           file.displayName ||
