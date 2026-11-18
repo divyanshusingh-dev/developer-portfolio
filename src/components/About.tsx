@@ -153,13 +153,13 @@ function About() {
               <span className="about-status-dot h-1.5 w-1.5 rounded-full bg-cyan-400" />
             </div>
 
-            <h2 className="text-5xl font-semibold leading-[1.08] tracking-[-0.055em] text-white sm:text-6xl md:text-7xl">
+            <h2 className="text-4xl font-semibold leading-[1.08] tracking-[-0.055em] text-white sm:text-5xl md:text-6xl">
               Beyond the
               <br />
 
-              <span className="about-gradient-text">
+              
                 code &amp; pixels.
-              </span>
+              
             </h2>
           </div>
 

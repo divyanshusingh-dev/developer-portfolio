@@ -425,18 +425,18 @@ function GitHubActivity() {
                 aria-hidden="true"
                 className="gh-status-dot h-2 w-2 rounded-full bg-emerald-400"
               />
-              <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-cyan-200 sm:text-xs">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-white-200 sm:text-xs">
                 Open Source · Developer Activity
               </span>
             </div>
 
-<h2 className="text-4xl font-semibold leading-[1.08] tracking-[-0.055em] text-white sm:text-5xl md:text-6xl">
+<h2 className="text-3xl font-semibold leading-[1.08] tracking-[-0.055em] text-white sm:text-4xl md:text-5xl">
               Code in progress
-              <br />
+             
 
-              <span className="about-gradient-text">
+              
                 Ideas in motion 
-              </span>
+              
             </h2>
 
             <p className="mt-5 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base sm:leading-8">

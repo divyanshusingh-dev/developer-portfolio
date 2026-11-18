@@ -129,13 +129,13 @@ function Skills() {
               </p>
             </div>
 
-            <h2 className="text-4xl font-semibold leading-tight tracking-[-0.045em] text-white sm:text-5xl md:text-6xl">
+            <h2 className="text-3xl font-semibold leading-tight tracking-[-0.045em] text-white sm:text-4xl md:text-5xl">
               Tools of my
-              <br />
+             
 
-              <span className="skills-gradient-text">
+              
                 digital craft.
-              </span>
+              
             </h2>
 
             <p className="mt-5 max-w-xl text-sm leading-7 text-slate-400 sm:text-base">
