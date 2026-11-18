@@ -1,0 +1,3746 @@
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
+import type {
+  ChangeEvent,
+  FormEvent,
+} from "react"
+import AdminSidebar from "./admin/AdminSidebar"
+
+type PdfSetting = {
+  slot: string
+  fileName: string
+  displayName: string
+  isSemester: boolean
+  protected: boolean
+  enabled: boolean
+  effectiveProtected: boolean
+  sgpa: number | null
+  percentage: number | null
+  sizeBytes: number
+  uploadedAt: string | null
+  builtIn: boolean
+  hasFile: boolean
+  available: boolean
+}
+
+type SecurityResponse = {
+  masterProtected: boolean
+  files: PdfSetting[]
+  overallCgpa: number | null
+}
+
+const API_BASE =
+  window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1"
+    ? "http://localhost:5000"
+    : "https://developer-portfolio-8.onrender.com"
+
+// Read API responses safely. If the server/proxy returns an HTML error page,
+// show a useful message instead of the confusing "Unexpected token '<'" error.
+async function readApiResponse(response: Response): Promise<any> {
+  const responseText = await response.text()
+  if (!responseText.trim()) return {}
+
+  try {
+    return JSON.parse(responseText)
+  } catch {
+    const endpointHint = response.url || "the API endpoint"
+    if (responseText.trimStart().startsWith("<")) {
+      throw new Error(
+        `The server returned an HTML page instead of JSON (${response.status}). Check that the latest backend is deployed and the API route exists: ${endpointHint}`,
+      )
+    }
+    throw new Error(`The server returned an invalid response (${response.status}).`)
+  }
+}
+
+function normalizeAnnouncement(raw: any): Announcement {
+  const rawAttachment = raw?.attachment
+  const attachmentUrl = typeof rawAttachment?.url === "string"
+    ? (rawAttachment.url.startsWith("http") ? rawAttachment.url : `${API_BASE}${rawAttachment.url}`)
+    : ""
+
+  return {
+    ...raw,
+    id: String(raw?.id ?? raw?._id ?? ""),
+    title: String(raw?.title ?? ""),
+    message: String(raw?.message ?? ""),
+    priority: raw?.priority === "urgent" || raw?.priority === "important" ? raw.priority : "normal",
+    createdAt: String(raw?.createdAt ?? new Date().toISOString()),
+    expiresAt: raw?.expiresAt ? String(raw.expiresAt) : null,
+    // Supports the common API shapes used for creator metadata. The backend
+    // must populate these fields from the authenticated admin, never the form.
+    createdById: String(
+      raw?.createdById ?? raw?.createdBy?._id ?? raw?.createdBy?.id ?? raw?.postedBy?._id ?? "",
+    ),
+    createdByName: String(
+      raw?.createdByName ||
+      raw?.postedByName ||
+      raw?.createdBy?.name ||
+      raw?.postedBy?.name ||
+      raw?.adminName ||
+      (typeof raw?.createdBy === "string" && !raw.createdBy.includes("@") ? raw.createdBy : "") ||
+      "Unknown admin",
+    ),
+    createdByEmail: String(
+      raw?.createdByEmail ?? raw?.postedByEmail ?? raw?.createdBy?.email ?? raw?.postedBy?.email ?? raw?.adminEmail ?? "",
+    ).toLowerCase(),
+    createdByRole: String(
+      raw?.createdByRole ?? raw?.postedByRole ?? raw?.createdBy?.role ?? raw?.postedBy?.role ?? "admin",
+    ),
+    attachment: rawAttachment && attachmentUrl ? {
+      fileName: String(rawAttachment.name || rawAttachment.originalName || "attachment"),
+      mimeType: String(rawAttachment.mimeType || "application/octet-stream"),
+      sizeBytes: Number(rawAttachment.sizeBytes || 0),
+      url: attachmentUrl,
+    } : null,
+  }
+}
+
+const PDF_OPTIONS = [
+  {
+    slot: "classX",
+    label: "10th Marksheet",
+    fileName: "10th-marksheet.pdf",
+  },
+  {
+    slot: "classXII",
+    label: "12th Marksheet",
+    fileName: "12th-marksheet.pdf",
+  },
+  {
+    slot: "classXMigration",
+    label: "10th Migration Certificate",
+    fileName: "10th-Migration Certificate.pdf",
+  },
+  {
+    slot: "classXIIMigration",
+    label: "12th Migration Certificate",
+    fileName: "12th-Migration Certificate.pdf",
+  },
+  {
+    slot: "firstSemester",
+    label: "1st Semester",
+    fileName: "1st-semester-dmc.pdf",
+  },
+  {
+    slot: "secondSemester",
+    label: "2nd Semester",
+    fileName: "2nd-semester-dmc.pdf",
+  },
+  {
+    slot: "thirdSemester",
+    label: "3rd Semester",
+    fileName: "3rd-semester-dmc.pdf",
+  },
+  {
+    slot: "fourthSemester",
+    label: "4th Semester",
+    fileName: "4th-semester-dmc.pdf",
+  },
+  {
+    slot: "fifthSemester",
+    label: "5th Semester",
+    fileName: "5th-semester-dmc.pdf",
+  },
+  {
+    slot: "sixthSemester",
+    label: "6th Semester",
+    fileName: "6th-semester-dmc.pdf",
+  },
+  {
+    slot: "degreeCertificate",
+    label: "Degree Certificate",
+    fileName: "degree-certificate.pdf",
+  },
+  {
+    slot: "resume",
+    label: "Resume",
+    fileName: "resume.pdf",
+  },
+]
+
+const SEMESTER_SLOTS = new Set([
+  "firstSemester",
+  "secondSemester",
+  "thirdSemester",
+  "fourthSemester",
+  "fifthSemester",
+  "sixthSemester",
+])
+
+const SCHOOL_MARKSHEET_SLOTS = new Set([
+  "classX",
+  "classXII",
+])
+
+function formatFileSize(bytes: number) {
+  if (!bytes) return "Not available"
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+}
+
+function formatDate(value: string | null) {
+  if (!value) return "Not updated"
+
+  return new Date(value).toLocaleString("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  })
+}
+
+type AdminRequest = {
+  _id: string
+  name: string
+  email: string
+  status: "pending" | "approved" | "rejected" | "disabled"
+  createdAt: string
+}
+
+type AdminUser = AdminRequest & {
+  role: string
+  updatedAt: string
+}
+
+type Announcement = {
+  id: string
+  title: string
+  message: string
+  priority: "normal" | "important" | "urgent"
+  createdAt: string
+  expiresAt: string | null
+  createdById?: string
+  createdByName: string
+  createdByEmail: string
+  createdByRole: string
+  attachment?: { fileName: string; mimeType: string; sizeBytes: number; url: string } | null
+}
+
+function AdminPdfSecurity() {
+  const [password, setPassword] = useState("")
+  const [adminEmail, setAdminEmail] = useState("")
+  const [adminRole, setAdminRole] = useState<"superadmin" | "admin" | "">("")
+  const [showLoginPassword, setShowLoginPassword] = useState(false)
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [masterProtected, setMasterProtected] = useState(true)
+  const [files, setFiles] = useState<PdfSetting[]>([])
+  const [overallCgpa, setOverallCgpa] = useState<number | null>(null)
+
+  const [selectedSlot, setSelectedSlot] = useState("firstSemester")
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [uploadPassword, setUploadPassword] = useState("")
+  const [uploadProtected, setUploadProtected] = useState(true)
+  const [uploadSgpa, setUploadSgpa] = useState("")
+  const [uploadPercentage, setUploadPercentage] = useState("")
+
+  const [isLoading, setIsLoading] = useState(false)
+  const [isUploading, setIsUploading] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
+
+  const [passwordModalFile, setPasswordModalFile] =
+    useState<PdfSetting | null>(null)
+  const [newPdfPassword, setNewPdfPassword] = useState("")
+
+  const [academicEdit, setAcademicEdit] = useState<{ file: PdfSetting; type: "sgpa" | "percentage" } | null>(null)
+  const [academicEditValue, setAcademicEditValue] = useState("")
+
+  const [showAllPasswordModal, setShowAllPasswordModal] =
+    useState(false)
+  const [allPdfPassword, setAllPdfPassword] = useState("")
+  const [allPdfPasswordConfirm, setAllPdfPasswordConfirm] =
+    useState("")
+
+  const [showAdminPasswordReset, setShowAdminPasswordReset] =
+    useState(false)
+  const [resetStep, setResetStep] =
+    useState<"email" | "otp" | "password">("email")
+  const [resetEmail, setResetEmail] = useState("")
+  const [resetOtp, setResetOtp] = useState("")
+  const [resetToken, setResetToken] = useState("")
+  const [newAdminPassword, setNewAdminPassword] = useState("")
+  const [confirmAdminPassword, setConfirmAdminPassword] = useState("")
+  const [showNewAdminPassword, setShowNewAdminPassword] = useState(false)
+  const [showConfirmAdminPassword, setShowConfirmAdminPassword] = useState(false)
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetError, setResetError] = useState("")
+  const [resetSuccess, setResetSuccess] = useState("")
+  const [otpCooldown, setOtpCooldown] = useState(0)
+
+  const [showAdminRegistration, setShowAdminRegistration] = useState(false)
+  const [registrationName, setRegistrationName] = useState("")
+  const [registrationEmail, setRegistrationEmail] = useState("")
+  const [registrationPassword, setRegistrationPassword] = useState("")
+  const [registrationConfirmPassword, setRegistrationConfirmPassword] = useState("")
+  const [showRegistrationPassword, setShowRegistrationPassword] = useState(false)
+  const [showRegistrationConfirmPassword, setShowRegistrationConfirmPassword] = useState(false)
+  const [registrationLoading, setRegistrationLoading] = useState(false)
+  const [registrationError, setRegistrationError] = useState("")
+  const [registrationSuccess, setRegistrationSuccess] = useState("")
+
+  const [pendingAdminRequests, setPendingAdminRequests] = useState<AdminRequest[]>([])
+  const [registeredAdmins, setRegisteredAdmins] = useState<AdminUser[]>([])
+  const [adminManagementLoading, setAdminManagementLoading] = useState(false)
+  const [adminDataLastRefreshed, setAdminDataLastRefreshed] = useState<string | null>(null)
+  const [adminSearch, setAdminSearch] = useState("")
+  const [adminStatusFilter, setAdminStatusFilter] = useState("all")
+  const [activityLog, setActivityLog] = useState<Array<{ id: string; action: string; detail: string; at: string }>>([])
+  const [showActivityLog, setShowActivityLog] = useState(false)
+  const [seenPendingCount, setSeenPendingCount] = useState(0)
+  const [confirmationModal, setConfirmationModal] = useState<{ title: string; message: string; confirmLabel: string; danger?: boolean; onConfirm: () => void } | null>(null)
+  const [activeTab, setActiveTab] = useState<"dashboard" | "announcements">("dashboard")
+  const [announcements, setAnnouncements] = useState<Announcement[]>([])
+  const [announcementSearch, setAnnouncementSearch] = useState("")
+  const [announcementPriorityFilter, setAnnouncementPriorityFilter] = useState("all")
+  const [announcementDateFilter, setAnnouncementDateFilter] = useState("all")
+  const [announcementDateFrom, setAnnouncementDateFrom] = useState("")
+  const [announcementDateTo, setAnnouncementDateTo] = useState("")
+  const [announcementAdminFilter, setAnnouncementAdminFilter] = useState("all")
+  const [announcementStatusFilter, setAnnouncementStatusFilter] = useState("active")
+  const [announcementTitle, setAnnouncementTitle] = useState("")
+  const [announcementMessage, setAnnouncementMessage] = useState("")
+  const [announcementPriority, setAnnouncementPriority] = useState<Announcement["priority"]>("normal")
+  const [announcementExpiry, setAnnouncementExpiry] = useState("")
+  const [announcementFile, setAnnouncementFile] = useState<File | null>(null)
+  const [priorityMenuOpen, setPriorityMenuOpen] = useState(false)
+  const [announcementFormError, setAnnouncementFormError] = useState("")
+  const [announcementFormSuccess, setAnnouncementFormSuccess] = useState("")
+
+  const approvedAdminCount = registeredAdmins.filter((user) => user.status === "approved").length
+  const rejectedAdminCount = registeredAdmins.filter((user) => user.status === "rejected").length
+  const filteredAdmins = registeredAdmins.filter((user) => {
+    const query = adminSearch.trim().toLowerCase()
+    const matchesQuery = !query || user.name.toLowerCase().includes(query) || user.email.toLowerCase().includes(query)
+    const matchesStatus = adminStatusFilter === "all" || user.status === adminStatusFilter
+    return matchesQuery && matchesStatus
+  })
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("admin_panel_activity_log")
+      if (stored) setActivityLog(JSON.parse(stored).slice(0, 30))
+      setSeenPendingCount(Number(localStorage.getItem("admin_panel_seen_pending") || "0"))
+    } catch {
+      // Ignore unavailable or malformed local activity data.
+    }
+  }, [])
+
+  const loadAnnouncements = async (): Promise<boolean> => {
+    try {
+      const response = await fetch(`${API_BASE}/api/announcements`, {
+        headers: { Accept: "application/json" },
+      })
+      const data = await readApiResponse(response)
+      if (!response.ok) throw new Error(data.message || `Unable to load announcements (HTTP ${response.status}).`)
+      const parsed = Array.isArray(data.announcements)
+        ? data.announcements.map(normalizeAnnouncement).filter((item: Announcement) => item.id)
+        : []
+      setAnnouncements(parsed.slice(0, 50))
+      setAnnouncementFormError("")
+      return true
+    } catch (loadError) {
+      setAnnouncementFormError(loadError instanceof Error ? loadError.message : "Unable to load announcements from the server.")
+      return false
+    }
+  }
+
+  useEffect(() => {
+    void loadAnnouncements()
+  }, [])
+
+  const saveAnnouncement = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setAnnouncementFormError("")
+    setAnnouncementFormSuccess("")
+    const title = announcementTitle.trim()
+    const message = announcementMessage.trim()
+    if (!title || !message) {
+      setAnnouncementFormError("Enter both an announcement title and message.")
+      return
+    }
+    if (title.length > 100 || message.length > 1000) {
+      setAnnouncementFormError("Title must be 100 characters or fewer and message 1,000 characters or fewer.")
+      return
+    }
+    try {
+      if (announcementFile) {
+        const allowedTypes = ["application/pdf", "image/png", "image/jpeg", "image/webp"]
+        if (!allowedTypes.includes(announcementFile.type)) throw new Error("Choose a PDF, PNG, JPG, or WebP file.")
+        if (announcementFile.size > 2 * 1024 * 1024) throw new Error("Attachment must be 2 MB or smaller.")
+      }
+
+      // Backend expects multipart/form-data with the uploaded file in req.file.
+      const formData = new FormData()
+      formData.append("title", title)
+      formData.append("message", message)
+      formData.append("priority", announcementPriority)
+      formData.append("expiresAt", announcementExpiry ? new Date(`${announcementExpiry}T23:59:59`).toISOString() : "")
+      if (announcementFile) formData.append("attachment", announcementFile)
+
+      const response = await fetch(`${API_BASE}/api/admin/announcements`, {
+        method: "POST",
+        headers: getAdminHeaders(password, adminEmail),
+        body: formData,
+      })
+      const data = await readApiResponse(response)
+      if (!response.ok) throw new Error(data.message || `Unable to publish announcement (HTTP ${response.status}).`)
+      const refreshSucceeded = await loadAnnouncements()
+      if (!refreshSucceeded) {
+        throw new Error("The server accepted the announcement, but the list could not refresh. Check the API status before publishing again.")
+      }
+      setAnnouncementTitle("")
+      setAnnouncementMessage("")
+      setAnnouncementPriority("normal")
+      setAnnouncementExpiry("")
+      setAnnouncementFile(null)
+      setAnnouncementFormSuccess(data.message || "Announcement published successfully.")
+      recordActivity("Announcement published", title)
+    } catch (saveError) {
+      setAnnouncementFormError(saveError instanceof Error ? saveError.message : "Unable to publish announcement.")
+    }
+  }
+
+  const canDeleteAnnouncement = (item: Announcement) => {
+    if (adminRole === "superadmin") return true
+    return Boolean(
+      adminRole === "admin" &&
+      item.createdByEmail &&
+      item.createdByEmail === adminEmail.trim().toLowerCase(),
+    )
+  }
+
+  const deleteAnnouncement = async (id: string) => {
+    const item = announcements.find((announcement) => announcement.id === id)
+    if (!item) return
+    if (!canDeleteAnnouncement(item)) {
+      setAnnouncementFormError("You can delete only announcements published by your own admin account.")
+      return
+    }
+    if (!window.confirm(`Delete the announcement "${item.title}" from the live portfolio?`)) return
+    setAnnouncementFormError("")
+    setAnnouncementFormSuccess("")
+    try {
+      const response = await fetch(`${API_BASE}/api/admin/announcements/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+        headers: getAdminHeaders(password, adminEmail),
+      })
+      const data = await readApiResponse(response)
+      if (!response.ok) throw new Error(data.message || `Unable to delete announcement (HTTP ${response.status}).`)
+      setAnnouncements((current) => current.filter((announcement) => announcement.id !== id))
+      setAnnouncementFormSuccess(data.message || "Announcement deleted.")
+      recordActivity("Announcement deleted", item.title)
+    } catch (deleteError) {
+      setAnnouncementFormError(deleteError instanceof Error ? deleteError.message : "Unable to delete announcement.")
+    }
+  }
+
+  const visibleAnnouncements = announcements.filter((item) => !item.expiresAt || new Date(item.expiresAt).getTime() >= Date.now())
+  const filteredAnnouncements = announcements.filter((item) => {
+    const now = new Date()
+    const created = new Date(item.createdAt)
+    const expiry = item.expiresAt ? new Date(item.expiresAt) : null
+    const expired = Boolean(expiry && expiry.getTime() < now.getTime())
+    const query = announcementSearch.trim().toLowerCase()
+    const matchesSearch = !query || item.title.toLowerCase().includes(query) || item.message.toLowerCase().includes(query)
+    const matchesPriority = announcementPriorityFilter === "all" || item.priority === announcementPriorityFilter
+    const matchesStatus = announcementStatusFilter === "all" || (announcementStatusFilter === "active" ? !expired : expired)
+    let matchesDate = true
+    if (announcementDateFilter === "today") {
+      matchesDate = created.toDateString() === now.toDateString()
+    } else if (announcementDateFilter === "7" || announcementDateFilter === "30") {
+      const days = Number(announcementDateFilter)
+      const start = new Date(now)
+      start.setDate(start.getDate() - days)
+      start.setHours(0, 0, 0, 0)
+      matchesDate = created >= start && created <= now
+    } else if (announcementDateFilter === "custom") {
+      const from = announcementDateFrom ? new Date(`${announcementDateFrom}T00:00:00`) : null
+      const to = announcementDateTo ? new Date(`${announcementDateTo}T23:59:59.999`) : null
+      matchesDate = (!from || created >= from) && (!to || created <= to)
+    }
+    const adminKey = item.createdByEmail || item.createdById || item.createdByName
+    const matchesAdmin = announcementAdminFilter === "all" || adminKey === announcementAdminFilter
+    return matchesSearch && matchesPriority && matchesDate && matchesAdmin && matchesStatus
+  })
+  const announcementAdminOptions = Array.from(new Map(announcements.map((item) => [item.createdByEmail || item.createdById || item.createdByName, item])).entries())
+
+  useEffect(() => {
+    if (pendingAdminRequests.length > seenPendingCount) {
+      // In-app notification indicator; server-side push/email notifications require backend support.
+    }
+  }, [pendingAdminRequests.length, seenPendingCount])
+
+  const recordActivity = (action: string, detail: string) => {
+    const entry = { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, action, detail, at: new Date().toISOString() }
+    setActivityLog((current) => {
+      const next = [entry, ...current].slice(0, 30)
+      try { localStorage.setItem("admin_panel_activity_log", JSON.stringify(next)) } catch { /* storage may be unavailable */ }
+      return next
+    })
+  }
+
+  const markPendingNotificationsSeen = () => {
+    setSeenPendingCount(pendingAdminRequests.length)
+    try { localStorage.setItem("admin_panel_seen_pending", String(pendingAdminRequests.length)) } catch { /* storage may be unavailable */ }
+  }
+
+  const exportAdminReport = () => {
+    const rows = [
+      ["Name", "Email", "Role", "Status", "Created At", "Updated At"],
+      ...filteredAdmins.map((user) => [user.name, user.email, user.role, user.status, user.createdAt, user.updatedAt]),
+    ]
+    const csv = rows.map((row) => row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",")).join("\r\n")
+    const blob = new Blob(["\uFEFF", csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `admin-report-${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+    recordActivity("Report exported", `${filteredAdmins.length} administrator record(s) exported to CSV`)
+  }
+
+  const selectedOption = useMemo(
+    () => PDF_OPTIONS.find((option) => option.slot === selectedSlot),
+    [selectedSlot]
+  )
+
+  const selectedExistingFile = useMemo(
+    () => files.find((file) => file.slot === selectedSlot),
+    [files, selectedSlot]
+  )
+
+  const [isPdfDropdownOpen, setIsPdfDropdownOpen] = useState(false)
+  const pdfDropdownRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    const savedPassword = sessionStorage.getItem(
+      "admin_panel_password"
+    )
+    const savedEmail = sessionStorage.getItem("admin_panel_email") || ""
+    const savedRole = (sessionStorage.getItem("admin_panel_role") ||
+      (savedEmail ? "admin" : "superadmin")) as "superadmin" | "admin"
+
+    if (savedPassword) {
+      setPassword(savedPassword)
+      setAdminEmail(savedEmail)
+      setAdminRole(savedRole)
+      setIsLoggedIn(true)
+      void loadSecuritySettings(savedPassword, savedEmail)
+      if (savedRole === "superadmin") {
+        void loadAdminManagement(savedPassword, savedEmail)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (otpCooldown <= 0) return
+
+    const timer = window.setInterval(() => {
+      setOtpCooldown((current) => Math.max(0, current - 1))
+    }, 1000)
+
+    return () => window.clearInterval(timer)
+  }, [otpCooldown])
+
+  const resetAdminPasswordFlow = () => {
+    setShowAdminPasswordReset(true)
+    setResetStep("email")
+    setResetEmail("")
+    setResetOtp("")
+    setResetToken("")
+    setNewAdminPassword("")
+    setConfirmAdminPassword("")
+    setResetError("")
+    setResetSuccess("")
+    setOtpCooldown(0)
+  }
+
+  const closeAdminPasswordReset = () => {
+    if (resetLoading) return
+    setShowAdminPasswordReset(false)
+    setResetError("")
+    setResetSuccess("")
+  }
+
+  const requestAdminOtp = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault()
+    setResetError("")
+    setResetSuccess("")
+
+    const email = resetEmail.trim().toLowerCase()
+    if (!email || !email.includes("@")) {
+      setResetError("Please enter your registered admin email address.")
+      return
+    }
+
+    try {
+      setResetLoading(true)
+      const response = await fetch(`${API_BASE}/api/admin/password-reset/request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || "Unable to send OTP.")
+      }
+
+      setResetStep("otp")
+      setOtpCooldown(60)
+      setResetSuccess(data.message || "OTP sent to your email address.")
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : "Unable to send OTP.")
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  const verifyAdminOtp = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setResetError("")
+    setResetSuccess("")
+
+    const otp = resetOtp.trim()
+    if (!/^\d{6}$/.test(otp)) {
+      setResetError("Enter the 6-digit OTP received in your email.")
+      return
+    }
+
+    try {
+      setResetLoading(true)
+      const response = await fetch(`${API_BASE}/api/admin/password-reset/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: resetEmail.trim().toLowerCase(), otp }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || "Invalid OTP.")
+      }
+
+      setResetToken(data.resetToken)
+      setResetStep("password")
+      setResetSuccess("OTP verified. Create your new admin password.")
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : "Unable to verify OTP.")
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  const submitAdminPasswordReset = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setResetError("")
+    setResetSuccess("")
+
+    const form = event.currentTarget
+    const newPasswordInput = form.elements.namedItem("newAdminPassword") as HTMLInputElement | null
+    const confirmPasswordInput = form.elements.namedItem("confirmAdminPassword") as HTMLInputElement | null
+
+    // Read the actual DOM input values at submit time. This avoids browser
+    // autofill/FormData inconsistencies with controlled password inputs.
+    const formNewAdminPassword = newPasswordInput?.value ?? ""
+    const formConfirmAdminPassword = confirmPasswordInput?.value ?? ""
+
+    if (!formNewAdminPassword) {
+      setResetError("Please enter a new admin password.")
+      return
+    }
+
+    if (!formConfirmAdminPassword) {
+      setResetError("Please confirm your new admin password.")
+      return
+    }
+
+    if (formNewAdminPassword.length < 8) {
+      setResetError("New admin password must be at least 8 characters.")
+      return
+    }
+
+    if (formNewAdminPassword !== formConfirmAdminPassword) {
+      setResetError(
+        `Passwords do not match. New password: ${formNewAdminPassword.length} characters, confirmation: ${formConfirmAdminPassword.length} characters.`
+      )
+      return
+    }
+
+    if (!resetEmail.trim()) {
+      setResetError("Admin email is required.")
+      return
+    }
+
+    if (!resetToken) {
+      setResetError("Your OTP verification session has expired. Please request a new OTP.")
+      return
+    }
+
+    try {
+      setResetLoading(true)
+      const response = await fetch(`${API_BASE}/api/admin/password-reset/complete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: resetEmail.trim().toLowerCase(),
+          resetToken,
+          newPassword: formNewAdminPassword,
+          confirmPassword: formConfirmAdminPassword,
+        }),
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.message || "Unable to change admin password.")
+      }
+
+      setResetSuccess(data.message || "Admin password changed successfully.")
+      setPassword("")
+      sessionStorage.removeItem("admin_panel_password")
+      setTimeout(() => {
+        setShowAdminPasswordReset(false)
+        setResetStep("email")
+        setResetEmail("")
+        setResetOtp("")
+        setResetToken("")
+        setNewAdminPassword("")
+        setConfirmAdminPassword("")
+        setResetSuccess("")
+      }, 1200)
+    } catch (err) {
+      setResetError(err instanceof Error ? err.message : "Unable to change admin password.")
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      if (
+        pdfDropdownRef.current &&
+        !pdfDropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsPdfDropdownOpen(false)
+      }
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsPdfDropdownOpen(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleOutsideClick)
+    document.addEventListener("keydown", handleEscape)
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick)
+      document.removeEventListener("keydown", handleEscape)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (selectedExistingFile?.isSemester) {
+      setUploadSgpa(
+        selectedExistingFile.sgpa != null
+          ? String(selectedExistingFile.sgpa)
+          : ""
+      )
+    } else {
+      setUploadSgpa("")
+    }
+
+    if (
+      selectedExistingFile?.slot &&
+      SCHOOL_MARKSHEET_SLOTS.has(selectedExistingFile.slot)
+    ) {
+      setUploadPercentage(
+        selectedExistingFile.percentage != null &&
+          selectedExistingFile.percentage !== undefined
+          ? String(selectedExistingFile.percentage)
+          : ""
+      )
+    } else {
+      setUploadPercentage("")
+    }
+  }, [selectedExistingFile])
+
+
+  const getAdminHeaders = (
+    passwordValue = password,
+    emailValue = adminEmail,
+    includeJson = false
+  ) => ({
+    ...(includeJson ? { "Content-Type": "application/json" } : {}),
+    "X-Admin-Password": passwordValue,
+    ...(emailValue ? { "X-Admin-Email": emailValue } : {}),
+  })
+
+  const loadAdminManagement = async (
+    adminPassword = password,
+    emailValue = adminEmail
+  ) => {
+    try {
+      setAdminManagementLoading(true)
+      const headers = getAdminHeaders(adminPassword, emailValue)
+
+      const [requestsResponse, usersResponse] = await Promise.all([
+        fetch(`${API_BASE}/api/admin/requests`, { headers }),
+        fetch(`${API_BASE}/api/admin/users`, { headers }),
+      ])
+
+      const requestsData = await requestsResponse.json()
+      const usersData = await usersResponse.json()
+
+      if (!requestsResponse.ok) {
+        throw new Error(requestsData.message || "Unable to load admin requests.")
+      }
+      if (!usersResponse.ok) {
+        throw new Error(usersData.message || "Unable to load registered admins.")
+      }
+
+      setPendingAdminRequests(requestsData.requests || [])
+      setRegisteredAdmins(usersData.users || [])
+      setAdminDataLastRefreshed(new Date().toISOString())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load admin management.")
+    } finally {
+      setAdminManagementLoading(false)
+    }
+  }
+
+  const submitAdminRegistration = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setRegistrationError("")
+    setRegistrationSuccess("")
+
+    const name = registrationName.trim()
+    const email = registrationEmail.trim().toLowerCase()
+
+    if (!name) {
+      setRegistrationError("Please enter your full name.")
+      return
+    }
+    if (!email || !email.includes("@")) {
+      setRegistrationError("Please enter a valid email address.")
+      return
+    }
+    if (registrationPassword.length < 8) {
+      setRegistrationError("Password must be at least 8 characters.")
+      return
+    }
+    if (registrationPassword !== registrationConfirmPassword) {
+      setRegistrationError("Password and confirm password do not match.")
+      return
+    }
+
+    try {
+      setRegistrationLoading(true)
+      const response = await fetch(`${API_BASE}/api/admin/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          email,
+          password: registrationPassword,
+          confirmPassword: registrationConfirmPassword,
+        }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || "Unable to submit registration.")
+      }
+
+      setRegistrationSuccess(data.message || "Registration submitted successfully.")
+      setRegistrationName("")
+      setRegistrationEmail("")
+      setRegistrationPassword("")
+      setRegistrationConfirmPassword("")
+      setTimeout(() => {
+        setShowAdminRegistration(false)
+        setRegistrationSuccess("")
+      }, 1800)
+    } catch (err) {
+      setRegistrationError(err instanceof Error ? err.message : "Unable to submit registration.")
+    } finally {
+      setRegistrationLoading(false)
+    }
+  }
+
+  const updateAdminRequest = async (id: string, action: "approve" | "reject") => {
+    try {
+      setAdminManagementLoading(true)
+      setError("")
+      const response = await fetch(`${API_BASE}/api/admin/requests/${id}/${action}`, {
+        method: "POST",
+        headers: getAdminHeaders(),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || `Unable to ${action} admin request.`)
+      setSuccess(data.message || `Admin request ${action}d successfully.`)
+      recordActivity(`Request ${action}d`, `Registration request ${id}`)
+      await loadAdminManagement()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Unable to ${action} admin request.`)
+    } finally {
+      setAdminManagementLoading(false)
+    }
+  }
+
+  const updateRegisteredAdmin = async (id: string, action: "disable" | "enable" | "delete") => {
+    try {
+      setAdminManagementLoading(true)
+      setError("")
+      const method = action === "delete" ? "DELETE" : "POST"
+      const response = await fetch(`${API_BASE}/api/admin/users/${id}${action === "delete" ? "" : `/${action}`}`, {
+        method,
+        headers: getAdminHeaders(),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.message || `Unable to ${action} admin.`)
+      setSuccess(data.message || `Admin ${action}d successfully.`)
+      recordActivity(`Admin ${action}d`, `Administrator ${id}`)
+      await loadAdminManagement()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Unable to ${action} admin.`)
+    } finally {
+      setAdminManagementLoading(false)
+    }
+  }
+
+  const loadSecuritySettings = async (adminPassword: string, emailValue = adminEmail) => {
+    try {
+      setIsLoading(true)
+      setError("")
+
+      const response = await fetch(
+        `${API_BASE}/api/admin/security`,
+        {
+          headers: getAdminHeaders(adminPassword, emailValue),
+        }
+      )
+
+      const data = (await response.json()) as SecurityResponse & {
+        message?: string
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Unable to load PDF security settings."
+        )
+      }
+
+      setMasterProtected(Boolean(data.masterProtected))
+      setFiles(data.files || [])
+      setOverallCgpa(data.overallCgpa ?? null)
+    } catch (err) {
+      sessionStorage.removeItem("admin_panel_password")
+      sessionStorage.removeItem("admin_panel_email")
+      sessionStorage.removeItem("admin_panel_role")
+      setIsLoggedIn(false)
+      setPassword("")
+      setFiles([])
+      setOverallCgpa(null)
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load PDF security settings."
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setError("")
+    setSuccess("")
+
+    const email = adminEmail.trim().toLowerCase()
+
+    if (!email || !email.includes("@")) {
+      setError("Please enter your registered admin email address.")
+      return
+    }
+
+    if (!password.trim()) {
+      setError("Please enter the admin password.")
+      return
+    }
+
+    try {
+      setIsLoading(true)
+
+      const response = await fetch(`${API_BASE}/api/admin/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.message || "Incorrect admin email or password.")
+      }
+
+      const role = data.role === "superadmin" ? "superadmin" : "admin"
+      sessionStorage.setItem("admin_panel_password", password)
+      sessionStorage.setItem("admin_panel_email", email)
+      sessionStorage.setItem("admin_panel_role", role)
+      setAdminEmail(email)
+      setAdminRole(role)
+      setIsLoggedIn(true)
+      await loadSecuritySettings(password, email)
+      if (role === "superadmin") {
+        await loadAdminManagement(password, email)
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("admin_panel_password")
+    sessionStorage.removeItem("admin_panel_email")
+    sessionStorage.removeItem("admin_panel_role")
+    setIsLoggedIn(false)
+    setPassword("")
+    setAdminEmail("")
+    setAdminRole("")
+    setFiles([])
+    setOverallCgpa(null)
+    setError("")
+    setSuccess("")
+  }
+
+  const handleFileChange = (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0] || null
+
+    setSelectedFile(file)
+    setError("")
+    setSuccess("")
+
+    if (!file) return
+
+    const isPdf =
+      file.type === "application/pdf" ||
+      file.name.toLowerCase().endsWith(".pdf")
+
+    if (!isPdf) {
+      setSelectedFile(null)
+      event.target.value = ""
+      setError("Only PDF files are allowed.")
+      return
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setSelectedFile(null)
+      event.target.value = ""
+      setError("PDF size must be 10 MB or less.")
+    }
+  }
+
+  const resetUploadForm = () => {
+    setSelectedFile(null)
+    setUploadPassword("")
+    setUploadProtected(true)
+
+    const currentFile = selectedExistingFile
+
+    if (SEMESTER_SLOTS.has(selectedSlot)) {
+      setUploadSgpa(
+        currentFile?.sgpa !== null && currentFile?.sgpa !== undefined
+          ? String(currentFile.sgpa)
+          : ""
+      )
+    } else {
+      setUploadSgpa("")
+    }
+
+    if (SCHOOL_MARKSHEET_SLOTS.has(selectedSlot)) {
+      setUploadPercentage(
+        currentFile?.percentage !== null &&
+          currentFile?.percentage !== undefined
+          ? String(currentFile.percentage)
+          : ""
+      )
+    } else {
+      setUploadPercentage("")
+    }
+
+    const input = document.getElementById(
+      "pdf-upload-input"
+    ) as HTMLInputElement | null
+
+    if (input) input.value = ""
+
+    if (selectedExistingFile?.isSemester) {
+      setUploadSgpa(
+        selectedExistingFile.sgpa != null
+          ? String(selectedExistingFile.sgpa)
+          : ""
+      )
+    } else {
+      setUploadSgpa("")
+    }
+  }
+
+  const handleSlotChange = (slot: string) => {
+    setSelectedSlot(slot)
+    setSelectedFile(null)
+    setUploadPassword("")
+    setError("")
+    setSuccess("")
+    setIsPdfDropdownOpen(false)
+
+    const selected = files.find(
+      (file) => file.slot === slot
+    )
+
+    setUploadSgpa(
+      selected?.sgpa !== null && selected?.sgpa !== undefined
+        ? String(selected.sgpa)
+        : ""
+    )
+
+    setUploadPercentage(
+      selected?.percentage !== null &&
+        selected?.percentage !== undefined
+        ? String(selected.percentage)
+        : ""
+    )
+  }
+
+  const handleUpload = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setError("")
+    setSuccess("")
+
+    if (!selectedFile) {
+      setError("Please select a PDF file.")
+      return
+    }
+
+    if (uploadProtected && !uploadPassword.trim()) {
+      setError(
+        "Please enter a PDF password when protection is ON."
+      )
+      return
+    }
+
+    if (!selectedOption) {
+      setError("Please select a valid PDF type.")
+      return
+    }
+
+    if (selectedExistingFile?.hasFile) {
+      const confirmed = window.confirm(
+        `"${selectedOption.label}" already has a PDF.\n\nDo you want to replace the existing PDF?`
+      )
+
+      if (!confirmed) return
+    }
+
+    if (SEMESTER_SLOTS.has(selectedSlot)) {
+      const sgpa = Number(uploadSgpa)
+
+      if (!Number.isFinite(sgpa) || sgpa < 0 || sgpa > 10) {
+        setError(
+          `${selectedOption.label} requires an SGPA between 0 and 10.`
+        )
+        return
+      }
+    }
+
+    if (SCHOOL_MARKSHEET_SLOTS.has(selectedSlot)) {
+      const percentage = Number(uploadPercentage)
+
+      if (
+        !Number.isFinite(percentage) ||
+        percentage < 0 ||
+        percentage > 100
+      ) {
+        setError(
+          `${selectedOption.label} requires a percentage between 0 and 100.`
+        )
+        return
+      }
+    }
+
+    try {
+      setIsUploading(true)
+
+      const formData = new FormData()
+      formData.append("pdf", selectedFile)
+      formData.append("slot", selectedSlot)
+      formData.append("password", uploadPassword)
+      formData.append(
+        "protected",
+        uploadProtected ? "true" : "false"
+      )
+
+      if (SEMESTER_SLOTS.has(selectedSlot)) {
+        formData.append("sgpa", uploadSgpa)
+      }
+
+      if (SCHOOL_MARKSHEET_SLOTS.has(selectedSlot)) {
+        formData.append("percentage", uploadPercentage)
+      }
+
+      const response = await fetch(
+        `${API_BASE}/api/admin/pdf/upload`,
+        {
+          method: "POST",
+          headers: {
+            "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
+          },
+          body: formData,
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Unable to upload PDF."
+        )
+      }
+
+      setSuccess(
+        data.message || `${selectedOption.label} uploaded successfully.`
+      )
+      resetUploadForm()
+      await loadSecuritySettings(password)
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to upload PDF."
+      )
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const updateMasterProtection = async (nextValue: boolean) => {
+    try {
+      setIsSaving(true)
+      setError("")
+      setSuccess("")
+
+      const response = await fetch(
+        `${API_BASE}/api/admin/security/master`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
+          },
+          body: JSON.stringify({ protected: nextValue }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Unable to update master protection."
+        )
+      }
+
+      setMasterProtected(nextValue)
+      setSuccess(
+        nextValue
+          ? "Password protection enabled for all PDFs."
+          : "Password protection disabled for all PDFs."
+      )
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to update master protection."
+      )
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const updateIndividualProtection = async (
+    fileName: string,
+    nextValue: boolean
+  ) => {
+    try {
+      setIsSaving(true)
+      setError("")
+      setSuccess("")
+
+      const response = await fetch(
+        `${API_BASE}/api/admin/security/pdf/${encodeURIComponent(
+          fileName
+        )}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
+          },
+          body: JSON.stringify({ protected: nextValue }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Unable to update PDF protection."
+        )
+      }
+
+      setFiles((currentFiles) =>
+        currentFiles.map((file) =>
+          file.fileName === fileName
+            ? {
+                ...file,
+                protected: nextValue,
+                effectiveProtected:
+                  masterProtected && nextValue,
+              }
+            : file
+        )
+      )
+
+      setSuccess(
+        `${data.fileName || fileName} protection ${
+          nextValue ? "enabled" : "disabled"
+        }.`
+      )
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to update PDF protection."
+      )
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const updateSlotEnabled = async (
+    slot: string,
+    nextValue: boolean
+  ) => {
+    try {
+      setIsSaving(true)
+      setError("")
+      setSuccess("")
+
+      const response = await fetch(
+        `${API_BASE}/api/admin/security/slot/${encodeURIComponent(
+          slot
+        )}/enabled`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
+          },
+          body: JSON.stringify({ enabled: nextValue }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Unable to update portfolio slot."
+        )
+      }
+
+      setFiles((currentFiles) =>
+        currentFiles.map((file) =>
+          file.slot === slot
+            ? {
+                ...file,
+                enabled: nextValue,
+                available: file.hasFile && nextValue,
+              }
+            : file
+        )
+      )
+
+      setSuccess(data.message || "Portfolio slot updated.")
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to update portfolio slot."
+      )
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const saveSgpa = async (file: PdfSetting, input: string) => {
+    if (!file.isSemester) return
+
+    const sgpa = Number(input)
+
+    if (!Number.isFinite(sgpa) || sgpa < 0 || sgpa > 10) {
+      setError("SGPA must be between 0 and 10.")
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      setError("")
+      setSuccess("")
+
+      const response = await fetch(
+        `${API_BASE}/api/admin/security/slot/${encodeURIComponent(
+          file.slot
+        )}/sgpa`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
+          },
+          body: JSON.stringify({ sgpa }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || "Unable to save SGPA.")
+      }
+
+      setFiles((currentFiles) =>
+        currentFiles.map((currentFile) =>
+          currentFile.slot === file.slot
+            ? { ...currentFile, sgpa: data.sgpa }
+            : currentFile
+        )
+      )
+      setOverallCgpa(data.overallCgpa ?? null)
+      setSuccess(data.message || "SGPA saved successfully.")
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to save SGPA."
+      )
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const savePercentage = async (file: PdfSetting, input: string) => {
+    if (!SCHOOL_MARKSHEET_SLOTS.has(file.slot)) return
+
+    const trimmedInput = input.trim()
+    const percentage = trimmedInput === "" ? Number.NaN : Number(trimmedInput)
+
+    if (
+      !Number.isFinite(percentage) ||
+      percentage < 0 ||
+      percentage > 100
+    ) {
+      setError("Percentage must be between 0 and 100.")
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      setError("")
+      setSuccess("")
+
+      const response = await fetch(
+        `${API_BASE}/api/admin/security/slot/${encodeURIComponent(
+          file.slot
+        )}/percentage`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
+          },
+          body: JSON.stringify({ percentage }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Unable to save percentage."
+        )
+      }
+
+      setFiles((currentFiles) =>
+        currentFiles.map((currentFile) =>
+          currentFile.slot === file.slot
+            ? {
+                ...currentFile,
+                percentage: data.percentage,
+              }
+            : currentFile
+        )
+      )
+
+      setSuccess(
+        data.message || "Percentage saved successfully."
+      )
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to save percentage."
+      )
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleAcademicEditSubmit = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault()
+
+    if (!academicEdit) return
+
+    if (academicEdit.type === "sgpa") {
+      await saveSgpa(academicEdit.file, academicEditValue)
+    } else {
+      await savePercentage(
+        academicEdit.file,
+        academicEditValue
+      )
+    }
+
+    setAcademicEdit(null)
+    setAcademicEditValue("")
+  }
+  const handleAdminDownload = async (file: PdfSetting) => {
+    if (!file.hasFile) {
+      setError(`${file.displayName} has not been uploaded yet.`)
+      return
+    }
+
+    try {
+      setError("")
+      setSuccess("")
+
+      const response = await fetch(
+        `${API_BASE}/api/admin/pdf/${encodeURIComponent(
+          file.fileName
+        )}`,
+        {
+          headers: {
+            "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(
+          data.message || "Unable to download PDF."
+        )
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+
+      link.href = url
+      link.download = file.fileName
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+
+      setSuccess(`${file.displayName} downloaded successfully.`)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to download PDF."
+      )
+    }
+  }
+
+  const handlePreview = async (file: PdfSetting) => {
+    if (!file.hasFile) {
+      setError(`${file.displayName} has not been uploaded yet.`)
+      return
+    }
+
+    try {
+      setError("")
+      setSuccess("")
+
+      const response = await fetch(
+        `${API_BASE}/api/admin/pdf/preview/${encodeURIComponent(
+          file.fileName
+        )}`,
+        {
+          headers: {
+            "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
+          },
+        }
+      )
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(
+          data.message || "Unable to preview PDF."
+        )
+      }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      window.open(url, "_blank", "noopener,noreferrer")
+
+      setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to preview PDF."
+      )
+    }
+  }
+
+  const handleDelete = async (file: PdfSetting, confirmedFromModal = false) => {
+    if (!file.hasFile) {
+      setError(`${file.displayName} has not been uploaded yet.`)
+      return
+    }
+
+    if (!confirmedFromModal) {
+      setConfirmationModal({
+        title: "Delete uploaded PDF?",
+        message: `Delete the uploaded PDF from ${file.displayName}? The fixed portfolio slot will remain available for a future upload.`,
+        confirmLabel: "Delete PDF",
+        danger: true,
+        onConfirm: () => {
+          setConfirmationModal(null)
+          void handleDelete(file, true)
+        },
+      })
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      setError("")
+      setSuccess("")
+
+      const response = await fetch(
+        `${API_BASE}/api/admin/pdf/${encodeURIComponent(
+          file.fileName
+        )}`,
+        {
+          method: "DELETE",
+          headers: {
+            "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
+          },
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.message || "Unable to delete PDF.")
+      }
+
+      setSuccess(data.message || "PDF deleted successfully.")
+      await loadSecuritySettings(password)
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Unable to delete PDF."
+      )
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const submitIndividualPassword = async (
+    event: FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault()
+
+    if (!passwordModalFile) return
+
+    if (newPdfPassword.trim().length < 4) {
+      setError("Password must be at least 4 characters.")
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      setError("")
+      setSuccess("")
+
+      const response = await fetch(
+        `${API_BASE}/api/admin/security/password/${encodeURIComponent(
+          passwordModalFile.fileName
+        )}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
+          },
+          body: JSON.stringify({ password: newPdfPassword }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Unable to change PDF password."
+        )
+      }
+
+      setSuccess(data.message || "PDF password changed successfully.")
+      setNewPdfPassword("")
+      setPasswordModalFile(null)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to change PDF password."
+      )
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const submitAllPassword = async (
+    event: FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault()
+
+    if (allPdfPassword.length < 4) {
+      setError("Password must be at least 4 characters.")
+      return
+    }
+
+    if (allPdfPassword !== allPdfPasswordConfirm) {
+      setError("New password and confirm password do not match.")
+      return
+    }
+
+    try {
+      setIsSaving(true)
+      setError("")
+      setSuccess("")
+
+      const response = await fetch(
+        `${API_BASE}/api/admin/security/password/all`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Admin-Password": password,
+            "X-Admin-Email": adminEmail,
+          },
+          body: JSON.stringify({ password: allPdfPassword }),
+        }
+      )
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(
+          data.message || "Unable to change all PDF passwords."
+        )
+      }
+
+      setSuccess(
+        data.message || "Passwords changed successfully."
+      )
+      setAllPdfPassword("")
+      setAllPdfPasswordConfirm("")
+      setShowAllPasswordModal(false)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Unable to change all PDF passwords."
+      )
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  if (!isLoggedIn) {
+    return (
+      <main className="admin-shell relative min-h-screen bg-[#020617] px-4 py-12 text-white sm:px-6 lg:px-8">
+
+        <style>{`
+          .admin-shell {
+            isolation: isolate;
+            background-image: radial-gradient(ellipse at 12% 0%, rgba(34, 211, 238, .09), transparent 32%), radial-gradient(ellipse at 88% 8%, rgba(139, 92, 246, .08), transparent 28%);
+          }
+          .admin-shell::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            pointer-events: none;
+            opacity: .18;
+            background-image: linear-gradient(rgba(148,163,184,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.06) 1px, transparent 1px);
+            background-size: 36px 36px;
+            mask-image: linear-gradient(to bottom, black, transparent 78%);
+          }
+          .admin-shell section > div,
+          .admin-shell section article,
+          .admin-shell [class*="rounded-2xl"][class*="border"],
+          .admin-shell [class*="rounded-3xl"][class*="border"] {
+            transition: border-color .22s ease, box-shadow .22s ease, background-color .22s ease, transform .22s ease;
+          }
+          .admin-shell [class*="rounded-2xl"][class*="border"]:hover,
+          .admin-shell [class*="rounded-3xl"][class*="border"]:hover {
+            border-color: rgba(103, 232, 249, .24);
+          }
+          .admin-shell button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+          .admin-shell button:focus-visible,
+          .admin-shell input:focus-visible,
+          .admin-shell select:focus-visible,
+          .admin-shell textarea:focus-visible {
+            outline: 2px solid rgba(103, 232, 249, .9);
+            outline-offset: 3px;
+          }
+          .admin-shell input, .admin-shell select, .admin-shell textarea { min-width: 0; }
+          .admin-shell ::-webkit-scrollbar { width: 8px; height: 8px; }
+          .admin-shell ::-webkit-scrollbar-track { background: rgba(15, 23, 42, .7); }
+          .admin-shell ::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, .6); border-radius: 999px; }
+          .admin-shell ::-webkit-scrollbar-thumb:hover { background: rgba(103, 232, 249, .55); }
+          @media (hover: hover) and (pointer: fine) {
+            .admin-shell button:not(:disabled):hover { transform: translateY(-1px); }
+          }
+          @media (max-width: 640px) {
+            .admin-shell { padding-left: 14px !important; padding-right: 14px !important; }
+            .admin-shell h1 { overflow-wrap: anywhere; }
+            .admin-shell [class*="overflow-x-auto"] { overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+            .admin-shell table { min-width: 620px; }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .admin-shell *, .admin-shell *::before, .admin-shell *::after {
+              scroll-behavior: auto !important;
+              animation-duration: .01ms !important;
+              animation-iteration-count: 1 !important;
+              transition-duration: .01ms !important;
+            }
+          }
+        `}</style>
+
+        <div className="mx-auto flex min-h-[82vh] w-full max-w-6xl items-center justify-center py-8 sm:py-12">
+          <div className="grid w-full overflow-hidden rounded-[2rem] border border-slate-800/90 bg-slate-900/80 shadow-[0_30px_100px_rgba(0,0,0,0.45)] backdrop-blur-2xl lg:grid-cols-[1.02fr_0.98fr]">
+            {/* Brand / information panel */}
+            <section className="relative hidden min-h-[650px] overflow-hidden border-r border-slate-800/80 bg-[#061426] p-10 lg:flex lg:flex-col lg:justify-between xl:p-14">
+              <div className="pointer-events-none absolute -left-28 -top-28 h-80 w-80 rounded-full bg-cyan-400/10 blur-3xl" />
+              <div className="pointer-events-none absolute -bottom-32 -right-20 h-96 w-96 rounded-full bg-blue-500/10 blur-3xl" />
+              <div className="relative z-10 flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-cyan-300/25 bg-cyan-300/10 text-cyan-200 shadow-lg shadow-cyan-950/30">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-6 w-6" aria-hidden="true">
+                    <path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9Z" strokeLinejoin="round" />
+                    <path d="m8 10 4-2.2 4 2.2v4l-4 2.2L8 14v-4Z" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font tracking-[0.18em] text-white">DEVELOPER</p>
+                  <p className="mt-0.5 text-[10px] font-semibold tracking-[0.25em] text-cyan-300/75">PORTFOLIO SYSTEMS</p>
+                </div>
+              </div>
+
+              <div className="relative z-10 max-w-lg">
+                
+                <h1 className="mt-7 text-3xl font-bold leading-[1.12] tracking-tight text-white xl:text-5xl">
+                  Manage your
+                  <span className="block">digital presence.</span>
+                </h1>
+                <p className="mt-6 max-w-md text-sm leading-7 text-slate-400">
+                  A private control centre for portfolio documents, academic records, announcements and administrator access.
+                </p>
+
+                <div className="mt-10 space-y-4">
+                  {[
+                    ["01", "Document management", "Upload, preview and protect portfolio PDFs."],
+                    ["02", "Academic records", "Maintain semester results and education details."],
+                    ["03", "Access control", "Manage administrator permissions securely."],
+                  ].map(([number, title, description]) => (
+                    <div key={number} className="flex items-start gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-cyan-300/10 text-xs font-extrabold text-cyan-200">{number}</span>
+                      <div>
+                        <p className="text-sm font-bold text-slate-100">{title}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">{description}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="relative z-10 flex items-center justify-between border-t border-white/[0.07] pt-5 text-[10px] font-medium tracking-wide text-slate-600">
+                <span>PRIVATE ADMINISTRATOR AREA</span>
+                <span>© {new Date().getFullYear()} PORTFOLIO</span>
+              </div>
+            </section>
+
+            {/* Login form */}
+            <section className="flex min-h-[650px] flex-col justify-center px-5 py-9 sm:px-10 sm:py-12 xl:px-14">
+              <div className="mx-auto w-full max-w-md">
+                <div className="mb-8 flex items-center gap-3 lg:hidden">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-300/25 bg-cyan-300/10 text-cyan-200">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5" aria-hidden="true">
+                      <path d="M4 7.5 12 3l8 4.5v9L12 21l-8-4.5v-9Z" strokeLinejoin="round" />
+                      <path d="m8 10 4-2.2 4 2.2v4l-4 2.2L8 14v-4Z" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium tracking-[0.16em] text-white">DEVELOPER PORTFOLIO</p>
+                    <p className="mt-0.5 text-[10px] font-semibold tracking-[0.18em] text-cyan-300">ADMIN CONSOLE</p>
+                  </div>
+                </div>
+
+                <div className="mb-8">
+                  <p className="text-[11px] font-medium uppercase tracking-[0.24em] text-cyan-300">Welcome back</p>
+                  <h2 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">Admin sign in</h2>
+                  <p className="mt-3 max-w-sm text-sm leading-6 text-slate-400">
+                    Sign in with your registered administrator account to continue.
+                  </p>
+                </div>
+
+                <form onSubmit={handleLogin} className="space-y-5">
+                  <div>
+                    <label htmlFor="admin-email" className="mb-2 block text-xs font-medium tracking-wide text-slate-300">
+                      EMAIL ADDRESS
+                    </label>
+                    <div className="group flex items-center gap-3 rounded-2xl border border-slate-700/90 bg-slate-950/70 px-4 transition focus-within:border-cyan-300/70 focus-within:ring-4 focus-within:ring-cyan-300/10">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5 shrink-0 text-slate-500 transition group-focus-within:text-cyan-300" aria-hidden="true">
+                        <rect x="3" y="5" width="18" height="14" rx="2.5" />
+                        <path d="m4 7 8 6 8-6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      <input
+                        id="admin-email"
+                        type="email"
+                        value={adminEmail}
+                        onChange={(event) => { setAdminEmail(event.target.value); setError("") }}
+                        placeholder="name@example.com"
+                        autoComplete="username"
+                        disabled={isLoading}
+                        className="h-14 min-w-0 w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-600 disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="admin-password" className="mb-2 block text-xs font-medium tracking-wide text-slate-300">
+                      PASSWORD
+                    </label>
+                    <div className="group flex items-center gap-3 rounded-2xl border border-slate-700/90 bg-slate-950/70 px-4 transition focus-within:border-cyan-300/70 focus-within:ring-4 focus-within:ring-cyan-300/10">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-5 w-5 shrink-0 text-slate-500 transition group-focus-within:text-cyan-300" aria-hidden="true">
+                        <rect x="4" y="10" width="16" height="11" rx="2.5" />
+                        <path d="M8 10V7a4 4 0 0 1 8 0v3" strokeLinecap="round" />
+                        <path d="M12 14v3" strokeLinecap="round" />
+                      </svg>
+                      <input
+                        id="admin-password"
+                        type={showLoginPassword ? "text" : "password"}
+                        value={password}
+                        onChange={(event) => { setPassword(event.target.value); setError("") }}
+                        placeholder="Enter your password"
+                        autoComplete="current-password"
+                        disabled={isLoading}
+                        className="h-14 min-w-0 w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-600 disabled:opacity-50"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword((current) => !current)}
+                        disabled={isLoading}
+                        aria-label={showLoginPassword ? "Hide admin password" : "Show admin password"}
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition hover:bg-white/5 hover:text-cyan-200 disabled:opacity-40"
+                      >
+                        {showLoginPassword ? (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5" aria-hidden="true">
+                            <path d="M3 3l18 18" /><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                            <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5 0 9 4 10 8a10.8 10.8 0 0 1-3.1 5.1" />
+                            <path d="M6.6 6.6C4.8 7.8 3.5 9.5 2 12c1 4 5 8 10 8 1.4 0 2.7-.3 3.9-.8" />
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5" aria-hidden="true">
+                            <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {error && (
+                    <div role="alert" className="flex items-start gap-2.5 rounded-2xl border border-rose-400/20 bg-rose-400/[0.07] px-4 py-3 text-sm leading-6 text-rose-300">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true">
+                        <circle cx="12" cy="12" r="9" /><path d="M12 8v5m0 3h.01" strokeLinecap="round" />
+                      </svg>
+                      <span>{error}</span>
+                    </div>
+                  )}
+
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="group flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-cyan-300 to-sky-400 px-5 py-3.5 text-sm font-extrabold text-slate-950 shadow-lg shadow-cyan-950/30 transition duration-200 hover:-translate-y-0.5 hover:from-cyan-200 hover:to-sky-300 hover:shadow-cyan-900/40 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                  >
+                    {isLoading ? (
+                      <>
+                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" opacity=".25" />
+                          <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                        </svg>
+                        Verifying access...
+                      </>
+                    ) : (
+                      <>
+                        Sign in to dashboard
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 transition-transform group-hover:translate-x-1" aria-hidden="true">
+                          <path d="M5 12h14m-6-6 6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                </form>
+
+                <div className="my-7 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-slate-800" />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-600">Account assistance</span>
+                  <div className="h-px flex-1 bg-slate-800" />
+                </div>
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={resetAdminPasswordFlow}
+                    disabled={isLoading}
+                    className="rounded-xl border border-slate-700/90 bg-slate-950/40 px-3 py-3 text-xs font-bold text-slate-300 transition hover:border-cyan-300/40 hover:bg-cyan-300/[0.06] hover:text-cyan-200 disabled:opacity-50"
+                  >
+                    Forgot password?
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setShowAdminRegistration(true); setRegistrationError(""); setRegistrationSuccess("") }}
+                    disabled={isLoading}
+                    className="rounded-xl border border-cyan-300/25 bg-cyan-300/[0.06] px-3 py-3 text-xs font-bold text-cyan-200 transition hover:border-cyan-300/50 hover:bg-cyan-300/10 disabled:opacity-50"
+                  >
+                    Request admin access
+                  </button>
+                </div>
+
+                <div className="mt-7 flex items-start gap-3 rounded-2xl border border-slate-800/80 bg-slate-950/40 p-4">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" aria-hidden="true">
+                    <path d="M12 3 19 6v5c0 4.5-2.8 7.8-7 10-4.2-2.2-7-5.5-7-10V6l7-3Z" strokeLinejoin="round" />
+                    <path d="m9 12 2 2 4-4" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  <p className="text-[11px] leading-5 text-slate-500">
+                    This area is restricted to authorized administrators. Password recovery is verified using an OTP sent to your registered email.
+                  </p>
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        {showAdminRegistration && (
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/85 px-4 py-6 backdrop-blur-md"
+            onMouseDown={() => {
+              if (!registrationLoading) setShowAdminRegistration(false)
+            }}
+          >
+            <div
+              className="w-full max-w-md overflow-hidden rounded-3xl border border-cyan-400/20 bg-slate-900 shadow-2xl"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div className="border-b border-slate-800 bg-gradient-to-r from-cyan-400/10 via-blue-500/5 to-transparent px-6 py-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-cyan-400">Admin Registration</p>
+                    <h2 className="mt-2 text-xl font-bold text-white">Request Admin Access</h2>
+                    <p className="mt-1 text-sm text-slate-400">Your account will remain pending until the Super Admin approves it.</p>
+                  </div>
+                  <button type="button" onClick={() => setShowAdminRegistration(false)} disabled={registrationLoading} className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 text-lg text-slate-400 hover:text-white">&times;</button>
+                </div>
+              </div>
+
+              <form onSubmit={submitAdminRegistration} className="space-y-4 px-6 py-6">
+                {registrationError && <div className="rounded-xl border border-red-400/20 bg-red-400/5 px-4 py-3 text-sm text-red-300">{registrationError}</div>}
+                {registrationSuccess && <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-3 text-sm text-emerald-300">{registrationSuccess}</div>}
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-200">Full Name</label>
+                  <input value={registrationName} onChange={(event) => setRegistrationName(event.target.value)} placeholder="Enter your full name" disabled={registrationLoading} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-sm text-white outline-none focus:border-cyan-400" />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-200">Email Address</label>
+                  <input type="email" value={registrationEmail} onChange={(event) => setRegistrationEmail(event.target.value)} placeholder="Enter your email address" autoComplete="email" disabled={registrationLoading} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-sm text-white outline-none focus:border-cyan-400" />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-200">Password</label>
+                  <div className="relative">
+                    <input type={showRegistrationPassword ? "text" : "password"} value={registrationPassword} onChange={(event) => setRegistrationPassword(event.target.value)} placeholder="Minimum 8 characters" autoComplete="new-password" disabled={registrationLoading} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 pr-12 text-sm text-white outline-none focus:border-cyan-400" />
+                    <button type="button" onClick={() => setShowRegistrationPassword((current) => !current)} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300">{showRegistrationPassword ? (
+                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                         <path d="M3 3l18 18" /><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                         <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5 0 9 4 10 8a10.8 10.8 0 0 1-3.1 5.1" />
+                         <path d="M6.6 6.6C4.8 7.8 3.5 9.5 2 12c1 4 5 8 10 8 1.4 0 2.7-.3 3.9-.8" />
+                       </svg>
+                     ) : (
+                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                         <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
+                       </svg>
+                     )}</button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-semibold text-slate-200">Confirm Password</label>
+                  <div className="relative">
+                    <input type={showRegistrationConfirmPassword ? "text" : "password"} value={registrationConfirmPassword} onChange={(event) => setRegistrationConfirmPassword(event.target.value)} placeholder="Re-enter your password" autoComplete="new-password" disabled={registrationLoading} className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 pr-12 text-sm text-white outline-none focus:border-cyan-400" />
+                    <button type="button" onClick={() => setShowRegistrationConfirmPassword((current) => !current)} className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 hover:text-cyan-300">{showRegistrationConfirmPassword ? (
+                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                         <path d="M3 3l18 18" /><path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                         <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5 0 9 4 10 8a10.8 10.8 0 0 1-3.1 5.1" />
+                         <path d="M6.6 6.6C4.8 7.8 3.5 9.5 2 12c1 4 5 8 10 8 1.4 0 2.7-.3 3.9-.8" />
+                       </svg>
+                     ) : (
+                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                         <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" /><circle cx="12" cy="12" r="3" />
+                       </svg>
+                     )}</button>
+                  </div>
+                </div>
+
+                <button type="submit" disabled={registrationLoading} className="w-full rounded-xl bg-cyan-400 px-4 py-3.5 text-sm font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50">
+                  {registrationLoading ? "Submitting..." : "Submit Registration"}
+                </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {showAdminPasswordReset && (
+          <div
+            className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/85 px-4 py-6 backdrop-blur-md"
+            onMouseDown={() => {
+              if (!resetLoading) closeAdminPasswordReset()
+            }}
+          >
+            <div
+              className="w-full max-w-md overflow-hidden rounded-3xl border border-cyan-400/20 bg-slate-900 shadow-2xl"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <div className="border-b border-slate-800 bg-gradient-to-r from-cyan-400/10 via-blue-500/5 to-transparent px-6 py-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-cyan-400">
+                      Account Recovery
+                    </p>
+                    <h2 className="mt-2 text-xl font-bold text-white">
+                      Change Admin Password
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-400">
+                      Verify the 6-digit OTP sent to your registered admin email.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeAdminPasswordReset}
+                    disabled={resetLoading}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-slate-700 text-lg text-slate-400 hover:text-white disabled:opacity-50"
+                    aria-label="Close password recovery"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <div className="mt-5 grid grid-cols-3 gap-2">
+                  {["Email", "OTP", "Password"].map((label, index) => {
+                    const active =
+                      (resetStep === "email" && index === 0) ||
+                      (resetStep === "otp" && index === 1) ||
+                      (resetStep === "password" && index === 2)
+                    return (
+                      <div key={label} className={`rounded-xl px-2 py-2 text-center text-[10px] font-bold uppercase tracking-wider ${active ? "bg-cyan-400/15 text-cyan-300" : "bg-slate-950/60 text-slate-600"}`}>
+                        {index + 1}. {label}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div className="px-6 py-6">
+                {resetError && (
+                  <div className="mb-4 rounded-xl border border-red-400/20 bg-red-400/5 px-4 py-3 text-sm text-red-300">
+                    {resetError}
+                  </div>
+                )}
+
+                {resetSuccess && (
+                  <div className="mb-4 rounded-xl border border-emerald-400/20 bg-emerald-400/5 px-4 py-3 text-sm text-emerald-300">
+                    {resetSuccess}
+                  </div>
+                )}
+
+                {resetStep === "email" && (
+                  <form onSubmit={requestAdminOtp} className="space-y-4">
+                    <div>
+                      <label htmlFor="reset-email" className="mb-2 block text-sm font-semibold text-slate-200">
+                        Registered Admin Email
+                      </label>
+                      <input
+                        id="reset-email"
+                        type="email"
+                        value={resetEmail}
+                        onChange={(event) => setResetEmail(event.target.value)}
+                        placeholder="Enter registered admin email"
+                        autoFocus
+                        disabled={resetLoading}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-sm text-white outline-none focus:border-cyan-400"
+                      />
+                    </div>
+                    <button type="submit" disabled={resetLoading} className="w-full rounded-xl bg-cyan-400 px-4 py-3.5 text-sm font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50">
+                      {resetLoading ? "Sending OTP..." : "Send OTP"}
+                    </button>
+                  </form>
+                )}
+
+                {resetStep === "otp" && (
+                  <form onSubmit={verifyAdminOtp} className="space-y-4">
+                    <div>
+                      <label htmlFor="reset-otp" className="mb-2 block text-sm font-semibold text-slate-200">
+                        6-Digit OTP
+                      </label>
+                      <input
+                        id="reset-otp"
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={resetOtp}
+                        onChange={(event) => setResetOtp(event.target.value.replace(/\D/g, ""))}
+                        placeholder="Enter OTP"
+                        autoFocus
+                        disabled={resetLoading}
+                        className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-center text-lg font-bold tracking-[0.45em] text-white outline-none focus:border-cyan-400"
+                      />
+                    </div>
+                    <button type="submit" disabled={resetLoading} className="w-full rounded-xl bg-cyan-400 px-4 py-3.5 text-sm font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50">
+                      {resetLoading ? "Verifying..." : "Verify OTP"}
+                    </button>
+                    <div className="flex items-center justify-between gap-3 text-xs">
+                      <button type="button" onClick={() => setResetStep("email")} disabled={resetLoading} className="text-slate-400 hover:text-white">
+                        Change email
+                      </button>
+                      <button type="button" onClick={() => void requestAdminOtp()} disabled={resetLoading || otpCooldown > 0} className="font-semibold text-cyan-300 disabled:text-slate-600">
+                        {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : "Resend OTP"}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {resetStep === "password" && (
+                  <form onSubmit={submitAdminPasswordReset} className="space-y-4">
+                    <div>
+                      <label htmlFor="new-admin-password" className="mb-2 block text-sm font-semibold text-slate-200">
+                        New Admin Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="new-admin-password"
+                          type={showNewAdminPassword ? "text" : "password"}
+                          name="newAdminPassword"
+                          value={newAdminPassword}
+                          onChange={(event) => {
+                            setNewAdminPassword(event.target.value)
+                            setResetError("")
+                          }}
+                          placeholder="Minimum 8 characters"
+                          autoFocus
+                          disabled={resetLoading}
+                          autoComplete="new-password"
+                          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 pr-12 text-sm text-white outline-none focus:border-cyan-400"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewAdminPassword((current) => !current)}
+                          disabled={resetLoading}
+                          aria-label={showNewAdminPassword ? "Hide new admin password" : "Show new admin password"}
+                          className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 transition hover:text-cyan-300 disabled:opacity-50"
+                        >
+                          {showNewAdminPassword ? (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                              <path d="M3 3l18 18" />
+                              <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                              <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5 0 9 4 10 8a10.8 10.8 0 0 1-3.1 5.1" />
+                              <path d="M6.6 6.6C4.8 7.8 3.5 9.5 2 12c1 4 5 8 10 8 1.4 0 2.7-.3 3.9-.8" />
+                            </svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label htmlFor="confirm-admin-password" className="mb-2 block text-sm font-semibold text-slate-200">
+                        Confirm New Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="confirm-admin-password"
+                          type={showConfirmAdminPassword ? "text" : "password"}
+                          name="confirmAdminPassword"
+                          value={confirmAdminPassword}
+                          onChange={(event) => {
+                            setConfirmAdminPassword(event.target.value)
+                            setResetError("")
+                          }}
+                          placeholder="Re-enter new password"
+                          disabled={resetLoading}
+                          autoComplete="new-password"
+                          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 pr-12 text-sm text-white outline-none focus:border-cyan-400"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowConfirmAdminPassword((current) => !current)}
+                          disabled={resetLoading}
+                          aria-label={showConfirmAdminPassword ? "Hide confirm password" : "Show confirm password"}
+                          className="absolute inset-y-0 right-0 flex w-12 items-center justify-center text-slate-400 transition hover:text-cyan-300 disabled:opacity-50"
+                        >
+                          {showConfirmAdminPassword ? (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                              <path d="M3 3l18 18" />
+                              <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                              <path d="M9.9 4.2A10.7 10.7 0 0 1 12 4c5 0 9 4 10 8a10.8 10.8 0 0 1-3.1 5.1" />
+                              <path d="M6.6 6.6C4.8 7.8 3.5 9.5 2 12c1 4 5 8 10 8 1.4 0 2.7-.3 3.9-.8" />
+                            </svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5" aria-hidden="true">
+                              <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                              <circle cx="12" cy="12" r="3" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={resetLoading}
+                      className="w-full rounded-xl bg-cyan-400 px-4 py-3.5 text-sm font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50"
+                    >
+                      {resetLoading ? "Changing Password..." : "Change Admin Password"}
+                    </button>
+                  </form>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    )
+  }
+
+  return (
+    <main className="admin-shell relative min-h-screen bg-[#020617] px-4 py-8 text-white sm:px-6 lg:px-8 lg:py-12">
+
+        <style>{`
+          .admin-shell {
+            isolation: isolate;
+            background-image: radial-gradient(ellipse at 12% 0%, rgba(34, 211, 238, .09), transparent 32%), radial-gradient(ellipse at 88% 8%, rgba(139, 92, 246, .08), transparent 28%);
+          }
+          .admin-shell::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            pointer-events: none;
+            opacity: .18;
+            background-image: linear-gradient(rgba(148,163,184,.06) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.06) 1px, transparent 1px);
+            background-size: 36px 36px;
+            mask-image: linear-gradient(to bottom, black, transparent 78%);
+          }
+          .admin-shell section > div,
+          .admin-shell section article,
+          .admin-shell [class*="rounded-2xl"][class*="border"],
+          .admin-shell [class*="rounded-3xl"][class*="border"] {
+            transition: border-color .22s ease, box-shadow .22s ease, background-color .22s ease, transform .22s ease;
+          }
+          .admin-shell [class*="rounded-2xl"][class*="border"]:hover,
+          .admin-shell [class*="rounded-3xl"][class*="border"]:hover {
+            border-color: rgba(103, 232, 249, .24);
+          }
+          .admin-shell button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+          .admin-shell button:focus-visible,
+          .admin-shell input:focus-visible,
+          .admin-shell select:focus-visible,
+          .admin-shell textarea:focus-visible {
+            outline: 2px solid rgba(103, 232, 249, .9);
+            outline-offset: 3px;
+          }
+          .admin-shell input, .admin-shell select, .admin-shell textarea { min-width: 0; }
+          .admin-shell ::-webkit-scrollbar { width: 8px; height: 8px; }
+          .admin-shell ::-webkit-scrollbar-track { background: rgba(15, 23, 42, .7); }
+          .admin-shell ::-webkit-scrollbar-thumb { background: rgba(100, 116, 139, .6); border-radius: 999px; }
+          .admin-shell ::-webkit-scrollbar-thumb:hover { background: rgba(103, 232, 249, .55); }
+          @media (hover: hover) and (pointer: fine) {
+            .admin-shell button:not(:disabled):hover { transform: translateY(-1px); }
+          }
+          @media (max-width: 640px) {
+            .admin-shell { padding-left: 14px !important; padding-right: 14px !important; }
+            .admin-shell h1 { overflow-wrap: anywhere; }
+            .admin-shell [class*="overflow-x-auto"] { overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; }
+            .admin-shell table { min-width: 620px; }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            .admin-shell *, .admin-shell *::before, .admin-shell *::after {
+              scroll-behavior: auto !important;
+              animation-duration: .01ms !important;
+              animation-iteration-count: 1 !important;
+              transition-duration: .01ms !important;
+            }
+          }
+        `}</style>
+
+      <div className="mx-auto mb-7 w-full max-w-7xl">
+        <AdminSidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          announcementCount={visibleAnnouncements.length}
+        />
+      </div>
+
+      <div hidden={activeTab !== "dashboard"} className="mx-auto w-full max-w-7xl">
+        <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-400">
+              Administration
+            </p>
+            <h1 className="mt-2 text-3xl font-bold sm:text-4xl">
+              PDF Security &amp; Education Manager
+            </h1>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
+              Upload or replace a PDF, control portfolio visibility, manage passwords and maintain semester SGPA data without editing source code.
+            </p>
+            <p className="mt-2 text-xs font-semibold uppercase tracking-wider text-slate-600">Signed in as {adminRole === "superadmin" ? "Super Admin" : "Administrator"} · {adminEmail}</p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-fit rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white"
+          >
+            Logout
+          </button>
+        </div>
+
+        <section aria-label="PDF portfolio summary" className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
+          <div className="rounded-2xl border border-cyan-400/15 bg-slate-900/65 p-4 shadow-lg shadow-cyan-950/10 sm:p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-xs">PDF slots</p>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">{files.length || PDF_OPTIONS.length}</p>
+            <p className="mt-1 text-[11px] text-slate-500">Configured documents</p>
+          </div>
+          <div className="rounded-2xl border border-emerald-400/15 bg-slate-900/65 p-4 shadow-lg shadow-emerald-950/10 sm:p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-xs">Uploaded</p>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-emerald-300 sm:text-3xl">{files.filter((file) => file.hasFile).length}</p>
+            <p className="mt-1 text-[11px] text-slate-500">PDFs available in admin</p>
+          </div>
+          <div className="rounded-2xl border border-violet-400/15 bg-slate-900/65 p-4 shadow-lg shadow-violet-950/10 sm:p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-xs">Protected</p>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-violet-300 sm:text-3xl">{files.filter((file) => file.hasFile && file.effectiveProtected).length}</p>
+            <p className="mt-1 text-[11px] text-slate-500">Uploaded PDFs protected</p>
+          </div>
+          <div className="rounded-2xl border border-amber-400/15 bg-slate-900/65 p-4 shadow-lg shadow-amber-950/10 sm:p-5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500 sm:text-xs">Portfolio enabled</p>
+            <p className="mt-2 text-2xl font-bold tracking-tight text-amber-200 sm:text-3xl">{files.filter((file) => file.enabled).length}</p>
+            <p className="mt-1 text-[11px] text-slate-500">Enabled document slots</p>
+          </div>
+        </section>
+
+        <section aria-labelledby="announcement-preview-heading" className="mb-8 overflow-hidden rounded-3xl border border-violet-400/20 bg-gradient-to-br from-violet-500/10 via-slate-900/90 to-cyan-500/5 p-5 shadow-xl shadow-violet-950/10 sm:p-7">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-violet-300/20 bg-violet-400/10 text-violet-200"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5" aria-hidden="true"><path d="m3 11 18-5-5 17-4-7-9-5Z" strokeLinejoin="round"/><path d="m12 16 5-7" strokeLinecap="round"/></svg></div>
+              <div><p className="text-[11px] font-bold uppercase tracking-[0.2em] text-violet-300">Admin communications</p><h2 id="announcement-preview-heading" className="mt-1 text-xl font-bold text-white">Announcements</h2><p className="mt-1 text-sm text-slate-400">A quick preview of notices saved in this browser.</p></div>
+            </div>
+            <button type="button" onClick={() => setActiveTab("announcements")} className="inline-flex w-fit items-center gap-2 rounded-xl border border-violet-300/25 bg-violet-400/10 px-4 py-2.5 text-sm font-bold text-violet-100 transition hover:bg-violet-400/15">Open Announcements <span aria-hidden="true">→</span></button>
+          </div>
+          <div className="mt-5 grid gap-3 lg:grid-cols-3">
+            {visibleAnnouncements.slice(0, 3).length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-950/35 px-4 py-6 text-sm text-slate-400 lg:col-span-3">No announcements yet. Open Announcements to publish a notice to the portfolio.</div>
+            ) : visibleAnnouncements.slice(0, 3).map((item) => (
+              <article key={item.id} className="rounded-2xl border border-slate-700/80 bg-slate-950/50 p-4">
+                <div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${item.priority === "urgent" ? "border-red-400/30 bg-red-400/10 text-red-300" : item.priority === "important" ? "border-amber-400/30 bg-amber-400/10 text-amber-200" : "border-cyan-400/25 bg-cyan-400/10 text-cyan-200"}`}>{item.priority}</span><time className="text-[10px] text-slate-500">{formatDate(item.createdAt)}</time></div>
+                <h3 className="mt-3 break-words font-bold text-white">{item.title}</h3><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-400">{item.message.length > 150 ? `${item.message.slice(0, 150)}…` : item.message}</p>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {adminRole === "superadmin" && (
+          <section className="mb-8 space-y-6">
+            <div className="flex flex-col gap-4 rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl sm:flex-row sm:items-center sm:justify-between sm:p-7">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">Super Admin</p>
+                <h2 className="mt-2 text-2xl font-bold text-white sm:text-3xl">Admin Access Management</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Review registration requests and manage approved administrator accounts.</p>
+              </div>
+              <div className="flex flex-col items-start gap-1.5 sm:items-end">
+                <button type="button" onClick={() => void loadAdminManagement()} disabled={adminManagementLoading} className="inline-flex w-fit items-center justify-center gap-2 rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-2.5 text-sm font-semibold text-slate-200 transition hover:border-cyan-400/50 hover:text-cyan-300 disabled:opacity-50">
+                  <svg className={`h-4 w-4 ${adminManagementLoading ? "animate-spin" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M20 7v5h-5"/><path d="M4 17v-5h5"/><path d="M5.6 9a7 7 0 0 1 11.7-2L20 12M4 12l2.7 5a7 7 0 0 0 11.7-2"/></svg>
+                  {adminManagementLoading ? "Refreshing..." : "Refresh"}
+                </button>
+                <p className="text-[11px] text-slate-500" aria-live="polite">{adminManagementLoading ? "Updating administrator data…" : adminDataLastRefreshed ? `Last updated ${new Date(adminDataLastRefreshed).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Data not refreshed yet"}</p>
+              </div>
+              <button type="button" onClick={markPendingNotificationsSeen} className="relative inline-flex w-fit items-center gap-2 rounded-xl border border-amber-400/30 bg-amber-400/5 px-4 py-2.5 text-sm font-semibold text-amber-200 hover:bg-amber-400/10" aria-label={`${Math.max(0, pendingAdminRequests.length - seenPendingCount)} new pending request notifications; mark as seen`}>
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+                Notifications{pendingAdminRequests.length > seenPendingCount && <span className="rounded-full bg-amber-300 px-1.5 py-0.5 text-[10px] font-black text-slate-950">{pendingAdminRequests.length - seenPendingCount}</span>}
+              </button>
+            </div>
+
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="relative overflow-hidden rounded-2xl border border-amber-400/20 bg-slate-900/80 p-5 shadow-lg sm:p-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-400">Pending Requests</p>
+                    <p className="mt-3 text-4xl font-bold tracking-tight text-white">{pendingAdminRequests.length}</p>
+                    <p className="mt-2 text-xs text-slate-500">Awaiting your review</p>
+                  </div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-400/10 text-amber-300">
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M19 8v6m-3-3h6"/></svg>
+                  </div>
+                </div>
+                <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-amber-400 transition-all" style={{ width: `${pendingAdminRequests.length ? 100 : 0}%` }} /></div>
+              </div>
+              <div className="relative overflow-hidden rounded-2xl border border-emerald-400/20 bg-slate-900/80 p-5 shadow-lg sm:p-6">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-slate-400">Registered Admins</p>
+                    <p className="mt-3 text-4xl font-bold tracking-tight text-white">{registeredAdmins.length}</p>
+                    <p className="mt-2 text-xs text-slate-500">Administrator accounts</p>
+                  </div>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-400/10 text-emerald-300">
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M20 8v6m-3-3h6"/></svg>
+                  </div>
+                </div>
+                <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-emerald-400 transition-all" style={{ width: `${registeredAdmins.length ? 100 : 0}%` }} /></div>
+              </div>
+            </div>
+
+            <div className="grid items-stretch gap-6 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-lg sm:p-6">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-base font-bold text-white">Administrator Status Overview</h3>
+                    <p className="mt-1 text-xs text-slate-500">Current account distribution</p>
+                  </div>
+                  <span className="rounded-lg bg-cyan-400/10 px-2.5 py-1.5 text-xs font-semibold text-cyan-300">Live data</span>
+                </div>
+                <div className="mt-6 flex flex-col items-center gap-6 sm:flex-row">
+                  <div className="relative flex h-36 w-36 shrink-0 items-center justify-center rounded-full" style={{ background: `conic-gradient(#34d399 ${registeredAdmins.length ? (approvedAdminCount / registeredAdmins.length) * 360 : 0}deg, #fbbf24 0deg)` }}>
+                    <div className="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-slate-900">
+                      <span className="text-3xl font-bold text-white">{registeredAdmins.length}</span>
+                      <span className="mt-1 text-[10px] uppercase tracking-wider text-slate-500">Total admins</span>
+                    </div>
+                  </div>
+                  <div className="w-full flex-1 space-y-4">
+                    <div>
+                      <div className="mb-2 flex items-center justify-between gap-3 text-sm"><span className="flex items-center gap-2 text-slate-300"><span className="h-2.5 w-2.5 rounded-full bg-emerald-400"/>Approved</span><span className="font-semibold text-white">{approvedAdminCount}</span></div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${registeredAdmins.length ? (approvedAdminCount / registeredAdmins.length) * 100 : 0}%` }}/></div>
+                    </div>
+                    <div>
+                      <div className="mb-2 flex items-center justify-between gap-3 text-sm"><span className="flex items-center gap-2 text-slate-300"><span className="h-2.5 w-2.5 rounded-full bg-amber-400"/>Disabled</span><span className="font-semibold text-white">{registeredAdmins.filter((u) => u.status === "disabled").length}</span></div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-amber-400" style={{ width: `${registeredAdmins.length ? (registeredAdmins.filter((u) => u.status === "disabled").length / registeredAdmins.length) * 100 : 0}%` }}/></div>
+                    </div>
+                    <div>
+                      <div className="mb-2 flex items-center justify-between gap-3 text-sm"><span className="flex items-center gap-2 text-slate-300"><span className="h-2.5 w-2.5 rounded-full bg-rose-400"/>Rejected</span><span className="font-semibold text-white">{rejectedAdminCount}</span></div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-rose-400" style={{ width: `${registeredAdmins.length ? (rejectedAdminCount / registeredAdmins.length) * 100 : 0}%` }}/></div>
+                    </div>
+                    <div>
+                      <div className="mb-2 flex items-center justify-between gap-3 text-sm"><span className="flex items-center gap-2 text-slate-300"><span className="h-2.5 w-2.5 rounded-full bg-cyan-400"/>Pending requests</span><span className="font-semibold text-white">{pendingAdminRequests.length}</span></div>
+                      <div className="h-2 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-cyan-400" style={{ width: `${pendingAdminRequests.length ? 100 : 0}%` }}/></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-lg sm:p-6">
+                <h3 className="text-base font-bold text-white">Pending Registration Requests</h3>
+                <p className="mt-1 text-xs text-slate-500">Review and respond to new admin applications.</p>
+                <div className="mt-5 space-y-3">
+                  {pendingAdminRequests.length === 0 ? (
+                    <div className="flex min-h-36 flex-col items-center justify-center rounded-xl border border-dashed border-slate-700 bg-slate-950/40 px-4 py-6 text-center">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-800 text-slate-400"><svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="m4 7 8 6 8-6"/></svg></div>
+                      <p className="mt-3 text-sm font-medium text-slate-300">No pending registration requests</p>
+                      <p className="mt-1 text-xs text-slate-500">New requests will appear here.</p>
+                    </div>
+                  ) : pendingAdminRequests.map((request) => (
+                    <div key={request._id} className="rounded-xl border border-slate-800 bg-slate-950/50 p-4">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0"><p className="font-semibold text-white">{request.name}</p><p className="mt-1 break-all text-sm text-slate-400">{request.email}</p><p className="mt-1 text-xs text-slate-600">Requested {formatDate(request.createdAt)}</p></div>
+                        <div className="flex shrink-0 gap-2"><button type="button" onClick={() => void updateAdminRequest(request._id, "approve")} disabled={adminManagementLoading} className="rounded-lg bg-emerald-400 px-3.5 py-2 text-xs font-bold text-slate-950 hover:bg-emerald-300 disabled:opacity-50">Approve</button><button type="button" onClick={() => void updateAdminRequest(request._id, "reject")} disabled={adminManagementLoading} className="rounded-lg border border-red-400/30 px-3.5 py-2 text-xs font-bold text-red-300 hover:bg-red-400/10 disabled:opacity-50">Reject</button></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-lg sm:p-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div><h3 className="text-lg font-bold text-white">Registered Administrators</h3><p className="mt-1 text-sm text-slate-500">Search, filter, export and manage administrator access.</p></div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-slate-700 px-3 py-1 text-xs font-medium text-slate-400">{registeredAdmins.length} total</span>
+                  <button type="button" onClick={exportAdminReport} className="rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-bold text-cyan-300 hover:bg-cyan-400/10">Export CSV</button>
+                  <button type="button" onClick={() => setShowActivityLog((value) => !value)} className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-bold text-slate-300 hover:border-cyan-400/40">{showActivityLog ? "Hide activity" : `Activity log (${activityLog.length})`}</button>
+                  {activityLog.length > 0 && <button type="button" onClick={() => setConfirmationModal({ title: "Clear activity log?", message: "This will remove the activity history stored in this browser. This action cannot be undone.", confirmLabel: "Clear log", danger: true, onConfirm: () => { setActivityLog([]); try { localStorage.removeItem("admin_panel_activity_log") } catch { /* storage may be unavailable */ } setConfirmationModal(null) } })} className="rounded-lg border border-red-400/30 px-3 py-2 text-xs font-bold text-red-300 hover:bg-red-400/10">Clear log</button>}
+                </div>
+              </div>
+              <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_190px]">
+                <label className="block"><span className="sr-only">Search administrators</span><input value={adminSearch} onChange={(event) => setAdminSearch(event.target.value)} placeholder="Search by name or email…" className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400" /></label>
+                <label className="block"><span className="sr-only">Filter by status</span><select value={adminStatusFilter} onChange={(event) => setAdminStatusFilter(event.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm text-white outline-none focus:border-cyan-400"><option value="all">All statuses</option><option value="approved">Approved</option><option value="disabled">Disabled</option><option value="pending">Pending</option><option value="rejected">Rejected</option></select></label>
+              </div>
+              {showActivityLog && <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/60 p-4"><div className="mb-3 flex items-center justify-between gap-3"><h4 className="text-sm font-bold text-white">Recent activity on this browser</h4><span className="text-[11px] text-amber-300">Local log · not a secure audit trail</span></div>{activityLog.length === 0 ? <p className="text-sm text-slate-500">No actions recorded in this browser yet.</p> : <div className="space-y-3">{activityLog.map((item) => <div key={item.id} className="flex flex-col gap-1 border-b border-slate-800 pb-3 last:border-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-sm font-medium text-slate-200">{item.action}</p><p className="text-xs text-slate-500">{item.detail}</p></div><time className="shrink-0 text-[11px] text-slate-600">{formatDate(item.at)}</time></div>)}</div>}</div>}
+              <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                {filteredAdmins.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-slate-700 px-4 py-8 text-center text-sm text-slate-500 xl:col-span-2">{registeredAdmins.length === 0 ? "No additional administrators have been approved yet." : "No administrators match your search and filter."}</div>
+                ) : filteredAdmins.map((user) => (
+                  <div key={user._id} className="flex min-w-0 flex-col gap-4 rounded-xl border border-slate-800 bg-slate-950/50 p-4 transition hover:border-slate-700 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-cyan-400/10 text-sm font-bold text-cyan-300">{user.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}</div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-white">{user.name}</p><span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${user.status === "approved" ? "border-emerald-400/20 bg-emerald-400/5 text-emerald-300" : user.status === "disabled" ? "border-amber-400/20 bg-amber-400/5 text-amber-300" : "border-slate-700 bg-slate-900 text-slate-400"}`}>{user.status}</span></div>
+                        <p className="mt-1 break-all text-sm text-slate-400">{user.email}</p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 gap-2 sm:justify-end">
+                      {user.status === "disabled" ? (
+                        <button type="button" onClick={() => void updateRegisteredAdmin(user._id, "enable")} disabled={adminManagementLoading} className="rounded-lg border border-emerald-400/30 px-3.5 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-400/10 disabled:opacity-50">Enable</button>
+                      ) : (
+                        <button type="button" onClick={() => setConfirmationModal({ title: "Disable admin access?", message: `Are you sure you want to disable access for ${user.name} (${user.email})? They will no longer be able to access the admin panel until enabled again.`, confirmLabel: "Disable Access", danger: true, onConfirm: () => { setConfirmationModal(null); void updateRegisteredAdmin(user._id, "disable") } })} disabled={adminManagementLoading} className="rounded-lg border border-amber-400/30 px-3.5 py-2 text-xs font-bold text-amber-300 transition hover:bg-amber-400/10 disabled:opacity-50">Disable</button>
+                      )}
+                      <button type="button" onClick={() => setConfirmationModal({ title: "Delete administrator?", message: `This will permanently delete the administrator account for ${user.name} (${user.email}). This action may not be reversible.`, confirmLabel: "Delete Admin", danger: true, onConfirm: () => { setConfirmationModal(null); void updateRegisteredAdmin(user._id, "delete") } })} disabled={adminManagementLoading} className="rounded-lg border border-red-400/30 px-3.5 py-2 text-xs font-bold text-red-300 transition hover:bg-red-400/10 disabled:opacity-50">Delete</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {error && (
+          <div className="mb-5 rounded-2xl border border-red-400/20 bg-red-400/5 px-5 py-4 text-sm text-red-300">
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-5 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 px-5 py-4 text-sm text-emerald-300">
+            {success}
+          </div>
+        )}
+
+        <section className="rounded-3xl border border-cyan-400/20 bg-slate-900/80 p-5 shadow-xl sm:p-7">
+          <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
+                PDF Manager
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-white sm:text-2xl">
+                Upload / Replace PDF
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                Every option maps to one fixed portfolio slot. All eleven semester/document options stay selectable, even when no file has been uploaded yet.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-xs text-slate-500">Current calculated CGPA</p>
+                  <p className="mt-1 text-3xl font-bold text-cyan-400">
+                    {overallCgpa !== null ? overallCgpa.toFixed(2) : "Not set"}
+                  </p>
+                </div>
+                <p className="text-xs leading-5 text-slate-500 sm:max-w-52 sm:text-right">
+                  Average of the semester SGPA values currently entered in the manager.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <form onSubmit={handleUpload} className="mt-7 space-y-5">
+            <div ref={pdfDropdownRef} className="relative">
+              <label
+                htmlFor="pdf-slot"
+                className="mb-2 block text-sm font-medium text-slate-300"
+              >
+                Select PDF Type
+              </label>
+
+              <button
+                id="pdf-slot"
+                type="button"
+                onClick={() =>
+                  setIsPdfDropdownOpen((current) => !current)
+                }
+                disabled={isUploading || isSaving}
+                aria-haspopup="listbox"
+                aria-expanded={isPdfDropdownOpen}
+                className={`group flex w-full items-center justify-between rounded-xl border px-4 py-3.5 text-left transition-all duration-300 ${
+                  isPdfDropdownOpen
+                    ? "border-cyan-400 bg-slate-950 shadow-lg shadow-cyan-500/10"
+                    : "border-slate-700 bg-slate-950 hover:border-slate-600"
+                }`}
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-white">
+                      {selectedOption?.label || "Select PDF Type"}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-slate-500">
+                      {selectedExistingFile?.hasFile
+                        ? "Uploaded"
+                        : "Not Uploaded"}
+                    </p>
+                  </div>
+                </div>
+
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className={`ml-3 h-4 w-4 shrink-0 text-slate-500 transition-transform duration-300 ${
+                    isPdfDropdownOpen
+                      ? "rotate-180 text-cyan-400"
+                      : "group-hover:text-slate-300"
+                  }`}
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="m6 9 6 6 6-6"
+                  />
+                </svg>
+              </button>
+
+              {isPdfDropdownOpen && (
+                <div className="absolute left-0 right-0 top-full z-[100] mt-2">
+                  <div className="overflow-hidden rounded-2xl border border-slate-700 bg-[#07101f]/95 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl">
+
+                    <div
+                      role="listbox"
+                      className="mt-1 max-h-80 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:#334155_transparent]"
+                    >
+                      {PDF_OPTIONS.map((option) => {
+                        const existing = files.find(
+                          (file) => file.slot === option.slot
+                        )
+                        const isSelected =
+                          option.slot === selectedSlot
+
+                        const isSchoolStart = option.slot === "classX"
+                        const isDegreeStart = option.slot === "firstSemester"
+                        const isProfessionalStart = option.slot === "resume"
+
+            return (
+              <div key={option.slot}>
+                {isSchoolStart && (
+                  <div className="border-b border-slate-800 px-3 pb-2.5 pt-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      SCHOOL DOCUMENTS
+                    </p>
+                  </div>
+                )}
+
+                {isDegreeStart && (
+                  <div className="border-b border-slate-800 px-3 pb-2.5 pt-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      DEGREE / COLLEGE DOCUMENTS
+                    </p>
+                  </div>
+                )}
+
+                {isProfessionalStart && (
+                  <div className="border-b border-slate-800 px-3 pb-2.5 pt-3">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      PROFESSIONAL DOCUMENTS
+                    </p>
+                  </div>
+                )}
+
+                            <button
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              onClick={() =>
+                                handleSlotChange(option.slot)
+                              }
+                              className={`group flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-all duration-200 ${
+                                isSelected
+                                  ? "bg-cyan-400/10"
+                                  : "hover:bg-white/[0.04]"
+                              }`}
+                            >
+                              <div
+                                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold transition ${
+                                  isSelected
+                                    ? "bg-cyan-400/15 text-cyan-300"
+                                    : existing?.hasFile
+                                      ? "bg-emerald-400/10 text-emerald-300"
+                                      : "bg-slate-800 text-slate-500"
+                                }`}
+                              >
+                                {isSelected
+                                  ? "\u2713"
+                                  : existing?.hasFile
+                                  ? "\u2713"
+                                    : "\u2022"}
+                              </div>
+
+                              <div className="min-w-0 flex-1">
+                                <p
+                                  className={`truncate text-sm font-medium ${
+                                    isSelected
+                                      ? "text-cyan-300"
+                                      : "text-slate-200 group-hover:text-white"
+                                  }`}
+                                >
+                                  {option.label}
+                                </p>
+
+                                <p className="mt-0.5 truncate text-[11px] text-slate-500">
+                                  {existing?.hasFile
+                                    ? "Uploaded"
+                                    : "Not Uploaded"}
+                                </p>
+                              </div>
+
+                              {isSelected && (
+                                <span className="text-xs font-semibold text-cyan-400">
+                                  Selected
+                                </span>
+                              )}
+                            </button>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {selectedOption && (
+              <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Selected Slot
+                    </p>
+                    <p className="mt-1 font-semibold text-white">
+                      {selectedOption.label}
+                    </p>
+                    <p className="mt-1 break-all text-xs text-slate-500">
+                      Portfolio file: {selectedOption.fileName}
+                    </p>
+                  </div>
+                  <span
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                      selectedExistingFile?.hasFile
+                        ? "border-cyan-400/20 bg-cyan-400/5 text-cyan-300"
+                        : "border-slate-700 bg-slate-900 text-slate-500"
+                    }`}
+                  >
+                    {selectedExistingFile?.hasFile
+                      ? "PDF Uploaded"
+                      : "PDF Not Uploaded"}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="grid gap-5 lg:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="pdf-upload-input"
+                  className="mb-2 block text-sm font-medium text-slate-300"
+                >
+                  Choose PDF File
+                </label>
+                <input
+                  id="pdf-upload-input"
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={handleFileChange}
+                  disabled={isUploading}
+                  className="block w-full cursor-pointer rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-slate-300 file:mr-4 file:rounded-lg file:border-0 file:bg-cyan-400 file:px-4 file:py-2 file:text-sm file:font-semibold file:text-slate-950 hover:file:bg-cyan-300"
+                />
+                <p className="mt-2 text-xs text-slate-500">
+                  Maximum file size: 10 MB.
+                </p>
+              </div>
+
+              {SEMESTER_SLOTS.has(selectedSlot) ? (
+                <div>
+                  <label
+                    htmlFor="semester-sgpa"
+                    className="mb-2 block text-sm font-medium text-slate-300"
+                  >
+                    Semester SGPA
+                  </label>
+                  <input
+                    id="semester-sgpa"
+                    type="number"
+                    min="0"
+                    max="10"
+                    step="0.01"
+                    value={uploadSgpa}
+                    onChange={(event) =>
+                      setUploadSgpa(event.target.value)
+                    }
+                    disabled={isUploading}
+                    placeholder="Example: 8.78"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400"
+                  />
+                  <p className="mt-2 text-xs text-slate-500">
+                    Used automatically for the calculated CGPA.
+                  </p>
+                </div>
+              ) : SCHOOL_MARKSHEET_SLOTS.has(selectedSlot) ? (
+                <div>
+                  <label
+                    htmlFor="school-percentage"
+                    className="mb-2 block text-sm font-medium text-slate-300"
+                  >
+                    Percentage
+                  </label>
+                  <input
+                    id="school-percentage"
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    value={uploadPercentage}
+                    onChange={(event) =>
+                      setUploadPercentage(event.target.value)
+                    }
+                    disabled={isUploading}
+                    placeholder="Example: 70.4"
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400"
+                  />
+                  <p className="mt-2 text-xs text-slate-500">
+                    Percentage for the selected Class X or Class XII marksheet.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                  <p className="text-sm font-medium text-slate-300">
+                    Academic result
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    No academic result value is required for migration certificates or the resume.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label
+                htmlFor="pdf-upload-password"
+                className="mb-2 block text-sm font-medium text-slate-300"
+              >
+                PDF Password
+              </label>
+              <input
+                id="pdf-upload-password"
+                type="password"
+                value={uploadPassword}
+                onChange={(event) =>
+                  setUploadPassword(event.target.value)
+                }
+                disabled={isUploading || !uploadProtected}
+                placeholder={
+                  uploadProtected
+                    ? "Enter password"
+                    : "Protection is OFF"
+                }
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-400 disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+
+            <div className="flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-semibold text-white">
+                  Password Protection
+                </p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  ON = visitors need the PDF password. OFF = direct download.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  setUploadProtected((current) => !current)
+                }
+                disabled={isUploading}
+                className={`relative h-8 w-14 shrink-0 rounded-full transition ${
+                  uploadProtected ? "bg-cyan-400" : "bg-slate-700"
+                }`}
+                aria-label="Toggle upload protection"
+              >
+                <span
+                  className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-lg transition ${
+                    uploadProtected ? "left-7" : "left-1"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <button
+                type="submit"
+                disabled={isUploading}
+                className="flex-1 rounded-xl bg-cyan-400 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {isUploading
+                  ? "Uploading..."
+                  : selectedExistingFile?.hasFile
+                    ? "Replace PDF"
+                    : "Upload PDF"}
+              </button>
+              <button
+                type="button"
+                onClick={resetUploadForm}
+                disabled={isUploading}
+                className="rounded-xl border border-slate-700 px-5 py-3 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Clear
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section className="mt-6 rounded-3xl border border-cyan-400/20 bg-slate-900/80 p-5 shadow-xl sm:p-7">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
+                Global Security
+              </p>
+              <h2 className="mt-2 text-xl font-bold sm:text-2xl">
+                Master Protection
+              </h2>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                This is separate from the individual PDF protection toggles. Turning it OFF temporarily removes the password requirement globally while preserving individual settings.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => updateMasterProtection(!masterProtected)}
+              disabled={isSaving || isLoading}
+              className={`relative h-8 w-14 shrink-0 rounded-full transition ${
+                masterProtected ? "bg-cyan-400" : "bg-slate-700"
+              }`}
+              aria-label="Toggle master protection"
+            >
+              <span
+                className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-lg transition ${
+                  masterProtected ? "left-7" : "left-1"
+                }`}
+              />
+            </button>
+          </div>
+
+          <div className="mt-6 flex flex-wrap gap-3">
+            <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-xs font-semibold text-cyan-300">
+              Master: {masterProtected ? "ON" : "OFF"}
+            </span>
+            <span className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-xs font-semibold text-slate-400">
+              {files.filter((file) => file.hasFile).length} / 11 PDFs uploaded
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowAllPasswordModal(true)}
+              disabled={files.every((file) => !file.hasFile) || isSaving}
+              className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Change Password for All PDFs
+            </button>
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/70 p-5 sm:p-7">
+          <div className="mb-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
+              Manage Documents
+            </p>
+            <h2 className="mt-2 text-xl font-bold sm:text-2xl">
+              All PDF Slots
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-slate-400">
+              Every slot is permanent. Delete removes only the uploaded file. The slot itself stays available for future uploads.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            {files.map((file) => {
+              const effectiveProtected =
+                masterProtected && file.protected
+
+              return (
+                <div
+                  key={file.slot}
+                  className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4 sm:p-5"
+                >
+                  <div className="flex flex-col gap-5">
+                    <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="font-semibold text-white">
+                            {file.displayName}
+                          </h3>
+                          <span className="rounded-full border border-slate-700 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                            {file.isSemester ? "Semester" : "Document"}
+                          </span>
+                          <span
+                            className={`rounded-full border px-2 py-1 text-[10px] font-semibold uppercase tracking-wider ${
+                              file.hasFile
+                                ? "border-emerald-400/20 bg-emerald-400/5 text-emerald-300"
+                                : "border-slate-700 bg-slate-900 text-slate-500"
+                            }`}
+                          >
+                            {file.hasFile ? "Uploaded" : "Not Uploaded"}
+                          </span>
+                        </div>
+
+                        <p className="mt-1 break-all text-xs text-slate-500">
+                          {file.fileName}
+                        </p>
+
+                        <div className="mt-3 grid gap-2 text-xs text-slate-500 sm:grid-cols-2 lg:grid-cols-4">
+                          <span>Size: {formatFileSize(file.sizeBytes)}</span>
+                          <span>Updated: {formatDate(file.uploadedAt)}</span>
+                          <span>
+                            {file.isSemester
+                              ? `SGPA: ${
+                                  file.sgpa != null
+                                    ? file.sgpa.toFixed(2)
+                                    : "Not set"
+                                }`
+                              : SCHOOL_MARKSHEET_SLOTS.has(file.slot)
+                                ? `Percentage: ${
+                                    file.percentage != null
+                                      ? `${file.percentage.toFixed(2)}%`
+                                      : "Not set"
+                                  }`
+                                : "Not set"}
+                          </span>
+                          <span>
+                            Portfolio: {file.hasFile && file.enabled ? "Enabled" : "Disabled"}
+                          </span>
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                              effectiveProtected
+                                ? "border-cyan-400/20 bg-cyan-400/5 text-cyan-300"
+                                : "border-slate-700 bg-slate-900 text-slate-500"
+                            }`}
+                          >
+                            Protection: {effectiveProtected ? "ON" : "OFF"}
+                          </span>
+                          <span
+                            className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+                              file.enabled
+                                ? "border-emerald-400/20 bg-emerald-400/5 text-emerald-300"
+                                : "border-slate-700 bg-slate-900 text-slate-500"
+                            }`}
+                          >
+                            Portfolio Slot: {file.enabled ? "ON" : "OFF"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 xl:max-w-xl xl:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedSlot(file.slot)
+                            window.scrollTo({
+                              top: 0,
+                              behavior: "smooth",
+                            })
+                          }}
+                          className="rounded-xl border border-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-400"
+                        >
+                          {file.hasFile ? "Replace PDF" : "Select"}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handlePreview(file)}
+                          disabled={!file.hasFile || isSaving || isUploading}
+                          className="rounded-xl border border-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Preview
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleAdminDownload(file)}
+                          disabled={!file.hasFile || isSaving || isUploading}
+                          className="rounded-xl border border-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Download
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPasswordModalFile(file)
+                            setNewPdfPassword("")
+                            setError("")
+                          }}
+                          disabled={!file.hasFile || isSaving || isUploading}
+                          className="rounded-xl border border-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-300 transition hover:border-cyan-400/40 hover:text-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Change Password
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateIndividualProtection(
+                              file.fileName,
+                              !file.protected
+                            )
+                          }
+                          disabled={!file.hasFile || isSaving || isUploading}
+                          className={`relative h-9 w-16 shrink-0 rounded-full transition ${
+                            file.protected ? "bg-cyan-400" : "bg-slate-700"
+                          } disabled:cursor-not-allowed disabled:opacity-50`}
+                          aria-label={`Toggle protection for ${file.displayName}`}
+                        >
+                          <span
+                            className={`absolute top-1.5 h-6 w-6 rounded-full bg-white shadow-lg transition ${
+                              file.protected ? "left-8" : "left-1.5"
+                            }`}
+                          />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateSlotEnabled(file.slot, !file.enabled)
+                          }
+                          disabled={isSaving || isUploading}
+                          className={`relative h-9 w-16 shrink-0 rounded-full transition ${
+                            file.enabled ? "bg-emerald-400" : "bg-slate-700"
+                          } disabled:cursor-not-allowed disabled:opacity-50`}
+                          aria-label={`Toggle portfolio slot for ${file.displayName}`}
+                        >
+                          <span
+                            className={`absolute top-1.5 h-6 w-6 rounded-full bg-white shadow-lg transition ${
+                              file.enabled ? "left-8" : "left-1.5"
+                            }`}
+                          />
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(file)}
+                          disabled={!file.hasFile || isSaving || isUploading}
+                          className="rounded-xl border border-red-400/20 bg-red-400/5 px-3.5 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-400/10 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                          Protection
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-white">
+                          {effectiveProtected ? "Password required" : "Direct download"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                          Portfolio
+                        </p>
+                        <p className="mt-1 text-sm font-semibold text-white">
+                          {file.enabled ? "Enabled" : "Disabled"}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-800 bg-slate-950/80 p-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                          Academic result
+                        </p>
+
+                        <div className="mt-1 flex items-center justify-between gap-2">
+                          <p className="text-sm font-semibold text-white">
+                            {file.isSemester && file.sgpa != null
+                              ? `SGPA ${file.sgpa.toFixed(2)}`
+                              : SCHOOL_MARKSHEET_SLOTS.has(file.slot) &&
+                                  file.percentage != null
+                                ? `Percentage ${file.percentage.toFixed(2)}%`
+                                : "Not applicable"}
+                          </p>
+
+                          {file.isSemester && (
+                            <button
+                              type="button"
+                              onClick={() => { setAcademicEdit({ file, type: "sgpa" }); setAcademicEditValue(file.sgpa != null ? String(file.sgpa) : "") }}
+                              disabled={isSaving || isUploading}
+                              className="rounded-lg border border-cyan-400/30 px-2.5 py-1.5 text-[11px] font-semibold text-cyan-300 transition hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Edit SGPA
+                            </button>
+                          )}
+
+                          {SCHOOL_MARKSHEET_SLOTS.has(file.slot) && (
+                            <button
+                              type="button"
+                              onClick={() => { setAcademicEdit({ file, type: "percentage" }); setAcademicEditValue(file.percentage != null ? String(file.percentage) : "") }}
+                              disabled={isSaving || isUploading}
+                              className="rounded-lg border border-cyan-400/30 px-2.5 py-1.5 text-[11px] font-semibold text-cyan-300 transition hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              Edit Percentage
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </section>
+      </div>
+
+      <div hidden={activeTab !== "announcements"} className="mx-auto w-full max-w-7xl space-y-6">
+        <section aria-labelledby="announcements-page-heading" className="overflow-hidden rounded-3xl border border-violet-400/20 bg-gradient-to-br from-violet-500/10 via-slate-900/95 to-cyan-500/5 p-6 shadow-2xl shadow-violet-950/10 sm:p-8">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-2xl"><p className="text-xs font-bold uppercase tracking-[0.22em] text-violet-300">Communications centre</p><h2 id="announcements-page-heading" className="mt-2 text-3xl font-bold tracking-tight text-white sm:text-4xl">Announcements</h2><p className="mt-3 text-sm leading-6 text-slate-400">Create priority-based notices for the portfolio. Published notices are stored on the server and shared with all visitors.</p></div>
+            <div className="flex w-fit items-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/5 px-3 py-2 text-xs font-semibold text-emerald-200"><span className="h-2 w-2 rounded-full bg-emerald-300" /> Live Announcements</div>
+          </div>
+          <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-4 text-sm leading-6 text-emerald-100"><strong className="block">Server publishing</strong>Announcements are published through the protected backend API and stored in MongoDB. Active notices appear on the public portfolio. Super Admins can delete any announcement. Normal admins can delete only their own announcements.</div>
+        </section>
+
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+          <form onSubmit={saveAnnouncement} className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl sm:p-6">
+            <div className="mb-5"><p className="text-xs font-bold uppercase tracking-[0.18em] text-cyan-300">Compose notice</p><h3 className="mt-2 text-xl font-bold text-white">Create an announcement</h3><p className="mt-1 text-sm text-slate-500">Audience : All Portfolio Visitors</p></div>
+            <label className="mb-2 block text-sm font-semibold text-slate-200" htmlFor="announcement-title">Title</label>
+            <input id="announcement-title" value={announcementTitle} onChange={(event) => setAnnouncementTitle(event.target.value)} maxLength={100} placeholder="e.g. Scheduled maintenance" className="mb-4 w-full rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-cyan-400" />
+            <div className="mb-1 flex justify-between gap-3"><label className="text-sm font-semibold text-slate-200" htmlFor="announcement-message">Message</label><span className="text-xs text-slate-600">{announcementMessage.length}/1000</span></div>
+            <textarea id="announcement-message" value={announcementMessage} onChange={(event) => setAnnouncementMessage(event.target.value)} maxLength={1000} rows={5} placeholder="Write a concise message for the admin team…" className="mb-4 w-full resize-y rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm leading-6 text-white outline-none placeholder:text-slate-600 focus:border-cyan-400" />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="relative"><label className="mb-2 block text-sm font-semibold text-slate-200" id="announcement-priority-label">Priority</label><button type="button" aria-labelledby="announcement-priority-label" aria-haspopup="listbox" aria-expanded={priorityMenuOpen} onClick={() => setPriorityMenuOpen((open) => !open)} className="flex w-full items-center justify-between rounded-xl border border-cyan-400/50 bg-slate-950 px-3 py-3 text-left text-sm text-white shadow-[0_0_0_1px_rgba(34,211,238,0.08)] transition hover:border-cyan-300 focus:outline-none focus:ring-2 focus:ring-cyan-400/30"><span className="flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${announcementPriority === "urgent" ? "bg-rose-400" : announcementPriority === "important" ? "bg-amber-400" : "bg-slate-400"}`} />{announcementPriority === "urgent" ? "Urgent" : announcementPriority === "important" ? "Important" : "Normal"}</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={`h-4 w-4 text-slate-400 transition-transform ${priorityMenuOpen ? "rotate-180" : ""}`} aria-hidden="true"><path d="m6 9 6 6 6-6" strokeLinecap="round" strokeLinejoin="round"/></svg></button>{priorityMenuOpen && <><button type="button" aria-label="Close priority menu" className="fixed inset-0 z-10 cursor-default" onClick={() => setPriorityMenuOpen(false)} /><div role="listbox" aria-labelledby="announcement-priority-label" className="absolute z-20 mt-2 w-full overflow-hidden rounded-xl border border-slate-700 bg-slate-900 p-1.5 shadow-2xl shadow-black/40 animate-in fade-in slide-in-from-top-1 duration-150">{([{value:"normal",label:"Normal",dot:"bg-slate-400"},{value:"important",label:"Important",dot:"bg-amber-400"},{value:"urgent",label:"Urgent",dot:"bg-rose-400"}] as const).map((option) => <button key={option.value} type="button" role="option" aria-selected={announcementPriority === option.value} onClick={() => { setAnnouncementPriority(option.value); setPriorityMenuOpen(false) }} className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm transition ${announcementPriority === option.value ? "bg-cyan-400/15 text-cyan-100" : "text-slate-200 hover:bg-slate-800 hover:text-white"}`}><span className={`h-2.5 w-2.5 rounded-full ${option.dot}`} />{option.label}{announcementPriority === option.value && <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="ml-auto h-4 w-4 text-cyan-300" aria-hidden="true"><path d="m5 12 4 4L19 6" strokeLinecap="round" strokeLinejoin="round"/></svg>}</button>)}</div></>}</div>
+              <div><label className="mb-2 block text-sm font-semibold text-slate-200" htmlFor="announcement-expiry">Expiry date <span className="font-normal text-slate-500">(optional)</span></label><input id="announcement-expiry" type="date" value={announcementExpiry} onChange={(event) => setAnnouncementExpiry(event.target.value)} min={new Date().toISOString().slice(0, 10)} className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm text-white outline-none focus:border-cyan-400" /></div>
+            </div>
+            <div className="mt-4"><label className="mb-2 block text-sm font-semibold text-slate-200" htmlFor="announcement-attachment">Attachment <span className="font-normal text-slate-500">(optional)</span></label><label htmlFor="announcement-attachment" className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-cyan-400/35 bg-slate-950/55 px-4 py-5 text-center transition hover:border-cyan-300 hover:bg-cyan-400/5"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="mb-2 h-7 w-7 text-cyan-300" aria-hidden="true"><path d="M12 16V4m0 0L7 9m5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" strokeLinecap="round" strokeLinejoin="round"/></svg><span className="text-sm font-semibold text-slate-100">{announcementFile ? announcementFile.name : "Choose a file or click to browse"}</span><span className="mt-1 text-xs text-slate-500">PDF, PNG, JPG or WebP · Maximum 2 MB</span><input id="announcement-attachment" type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp" className="sr-only" onChange={(event) => setAnnouncementFile(event.target.files?.[0] ?? null)} /></label>{announcementFile && <button type="button" onClick={() => setAnnouncementFile(null)} className="mt-2 text-xs font-semibold text-rose-300 transition hover:text-rose-200">Remove attachment</button>}</div>
+            {announcementFormError && <p role="alert" className="mt-4 rounded-xl border border-red-400/20 bg-red-400/5 p-3 text-sm text-red-300">{announcementFormError}</p>}
+            {announcementFormSuccess && <p role="status" className="mt-4 rounded-xl border border-emerald-400/20 bg-emerald-400/5 p-3 text-sm leading-6 text-emerald-200">{announcementFormSuccess}</p>}
+            <button type="submit" className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-cyan-400 px-4 py-3.5 text-sm font-bold text-slate-950 transition hover:bg-cyan-300"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>Publish announcement</button>
+            <p className="mt-3 text-center text-xs leading-5 text-slate-500">Super Admin: delete any notice · Admin: delete your own notices only.</p>
+          </form>
+
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5 shadow-xl sm:p-6">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-300">Notice archive</p><h3 className="mt-2 text-xl font-bold text-white">Saved announcements</h3><p className="mt-1 text-sm text-slate-500">{visibleAnnouncements.length} active on the server</p></div><span className="w-fit rounded-full border border-emerald-400/20 px-3 py-1 text-xs text-emerald-300">Published announcement</span></div>
+            <div className="mt-5 grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <input aria-label="Search announcements" value={announcementSearch} onChange={(event) => setAnnouncementSearch(event.target.value)} placeholder="Search title or message…" className="min-w-0 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-cyan-400 sm:col-span-2 xl:col-span-1" />
+              <select aria-label="Filter by priority" value={announcementPriorityFilter} onChange={(event) => setAnnouncementPriorityFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-white"><option value="all">All priorities</option><option value="normal">Normal</option><option value="important">Important</option><option value="urgent">Urgent</option></select>
+              <select aria-label="Filter by date" value={announcementDateFilter} onChange={(event) => setAnnouncementDateFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-white"><option value="all">All dates</option><option value="today">Today</option><option value="7">Last 7 days</option><option value="30">Last 30 days</option><option value="custom">Custom range</option></select>
+              {announcementDateFilter === "custom" && <><input aria-label="Date from" type="date" value={announcementDateFrom} onChange={(event) => setAnnouncementDateFrom(event.target.value)} className="min-w-0 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-white"/><input aria-label="Date to" type="date" value={announcementDateTo} onChange={(event) => setAnnouncementDateTo(event.target.value)} className="min-w-0 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-white"/></>}
+              <select aria-label="Filter by admin" value={announcementAdminFilter} onChange={(event) => setAnnouncementAdminFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-white"><option value="all">All admins</option>{announcementAdminOptions.map(([key, item]) => <option key={key} value={key}>{item.createdByName}{item.createdByEmail ? ` (${item.createdByEmail})` : ""}</option>)}</select>
+              <select aria-label="Filter by status" value={announcementStatusFilter} onChange={(event) => setAnnouncementStatusFilter(event.target.value)} className="min-w-0 rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-2.5 text-sm text-white"><option value="active">Active</option><option value="expired">Expired</option><option value="all">All statuses</option></select>
+              <div className="flex flex-wrap items-center justify-between gap-2 sm:col-span-2 xl:col-span-3"><p className="text-xs text-slate-400">Showing {filteredAnnouncements.length} of {announcements.length} announcements</p><button type="button" onClick={() => { setAnnouncementSearch(""); setAnnouncementPriorityFilter("all"); setAnnouncementDateFilter("all"); setAnnouncementDateFrom(""); setAnnouncementDateTo(""); setAnnouncementAdminFilter("all"); setAnnouncementStatusFilter("active") }} className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 hover:bg-slate-800">Clear filters</button></div>
+            </div>
+            <div className="mt-3 space-y-3">
+              {filteredAnnouncements.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-700 px-4 py-10 text-center"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-800 text-slate-400"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-6 w-6" aria-hidden="true"><path d="m3 11 18-5-5 17-4-7-9-5Z" strokeLinejoin="round"/></svg></div><p className="mt-3 font-semibold text-slate-200">No announcements yet</p><p className="mt-1 text-sm text-slate-500">Create a notice using the form.</p></div> : filteredAnnouncements.map((item) => <article key={item.id} className="rounded-2xl border border-slate-800 bg-slate-950/55 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider ${item.priority === "urgent" ? "border-red-400/30 bg-red-400/10 text-red-300" : item.priority === "important" ? "border-amber-400/30 bg-amber-400/10 text-amber-200" : "border-cyan-400/25 bg-cyan-400/10 text-cyan-200"}`}>{item.priority}</span><span className="text-xs text-slate-500">Created {formatDate(item.createdAt)}</span></div>{canDeleteAnnouncement(item) && <button type="button" onClick={() => void deleteAnnouncement(item.id)} className="rounded-lg border border-red-400/20 px-3 py-1.5 text-xs font-semibold text-red-300 transition hover:bg-red-400/10">Delete</button>}</div><div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2"><span className="text-xs text-slate-500">Posted by</span><span className="text-xs font-semibold text-slate-200">{item.createdByName}</span><span className="rounded-full border border-violet-400/20 bg-violet-400/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-200">{item.createdByRole === "superadmin" ? "Super Admin" : "Admin"}</span>{item.createdByEmail && <span className="text-xs text-slate-500">{item.createdByEmail}</span>}</div><h4 className="mt-3 break-words text-base font-bold text-white">{item.title}</h4><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-400">{item.message}</p>{item.attachment && (
+                <div className="mt-4 rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-all text-sm font-semibold text-white">{item.attachment.fileName}</p>
+                      <p className="mt-1 text-xs text-slate-400">{formatFileSize(item.attachment.sizeBytes)}</p>
+                    </div>
+                    <a
+                      href={item.attachment.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download={item.attachment.fileName}
+                      className="inline-flex shrink-0 items-center rounded-lg border border-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-300 transition hover:bg-cyan-400/10"
+                    >
+                      {item.attachment.mimeType === "application/pdf" ? "View / Download PDF" : "View / Download"}
+                    </a>
+                  </div>
+                  {item.attachment.mimeType.startsWith("image/") && (
+                    <a href={item.attachment.url} target="_blank" rel="noopener noreferrer" className="mt-3 block">
+                      <img src={item.attachment.url} alt={item.attachment.fileName} className="max-h-64 max-w-full rounded-lg border border-slate-700 object-contain" />
+                    </a>
+                  )}
+                </div>
+              )}{item.expiresAt && <p className="mt-3 text-xs text-slate-500">Expires {formatDate(item.expiresAt)}</p>}</article>)}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {academicEdit && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-md"
+          onMouseDown={() => {
+            if (!isSaving) {
+              setAcademicEdit(null)
+              setAcademicEditValue("")
+            }
+          }}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-3xl border border-cyan-400/20 bg-slate-900/95 shadow-[0_25px_80px_rgba(0,0,0,0.55)]"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="border-b border-slate-800 bg-gradient-to-r from-cyan-400/10 via-blue-500/5 to-transparent px-6 py-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-cyan-400">
+                    Academic Result
+                  </p>
+                  <h2 className="mt-2 text-xl font-bold text-white">
+                    Edit {academicEdit.type === "sgpa" ? "SGPA" : "Percentage"}
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-400">
+                    {academicEdit.file.displayName}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAcademicEdit(null)
+                    setAcademicEditValue("")
+                  }}
+                  disabled={isSaving}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700 bg-slate-950/60 text-lg text-slate-400 transition hover:border-slate-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                  aria-label="Close"
+                >
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              </div>
+            </div>
+
+            <form
+              onSubmit={handleAcademicEditSubmit}
+              className="space-y-5 px-6 py-6"
+            >
+              <div>
+                <label
+                  htmlFor="academic-edit-value"
+                  className="mb-2 block text-sm font-semibold text-slate-200"
+                >
+                  {academicEdit.type === "sgpa" ? "SGPA" : "Percentage"}
+                </label>
+
+                <div className="flex items-center overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-950/90 transition focus-within:border-cyan-400/70 focus-within:ring-4 focus-within:ring-cyan-400/10">
+  <button
+    type="button"
+    onClick={() => {
+      const current = Number(academicEditValue) || 0
+      const next = Math.max(0, current - 0.01)
+      setAcademicEditValue(next.toFixed(2))
+    }}
+    disabled={isSaving}
+    className="m-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-lg font-bold text-slate-400 transition hover:border-cyan-400/30 hover:bg-cyan-400/10 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+    aria-label="Decrease value"
+  >
+    -
+  </button>
+
+  <input
+    id="academic-edit-value"
+    type="number"
+    min="0"
+    max={academicEdit.type === "sgpa" ? 10 : 100}
+    step="0.01"
+    value={academicEditValue}
+    onChange={(event) => setAcademicEditValue(event.target.value)}
+    inputMode="decimal"
+    autoFocus
+    placeholder={
+      academicEdit.type === "sgpa" ? "8.95" : "70.40"
+    }
+    className="min-w-0 flex-1 bg-transparent px-3 py-4 text-center text-lg font-bold tracking-wide text-white outline-none placeholder:text-slate-600/60"
+  />
+
+  <span className="pointer-events-none mr-1.5 rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-2.5 py-1 text-xs font-bold tracking-wide text-cyan-300">
+    {academicEdit.type === "sgpa" ? "/ 10" : "%"}
+  </span>
+
+  <button
+    type="button"
+    onClick={() => {
+      const max =
+        academicEdit.type === "sgpa" ? 10 : 100
+      const current = Number(academicEditValue) || 0
+      const next = Math.min(max, current + 0.01)
+      setAcademicEditValue(next.toFixed(2))
+    }}
+    disabled={isSaving}
+    className="m-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-lg font-bold text-slate-400 transition hover:border-cyan-400/30 hover:bg-cyan-400/10 hover:text-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+    aria-label="Increase value"
+  >
+    +
+  </button>
+</div>
+<p className="mt-2 text-xs text-slate-500">
+                  {academicEdit.type === "sgpa"
+                    ? "Enter a value from 0 to 10."
+                    : "Enter a value from 0 to 100."}
+                </p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAcademicEdit(null)
+                    setAcademicEditValue("")
+                  }}
+                  disabled={isSaving}
+                  className="flex-1 rounded-2xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm font-semibold text-slate-300 transition hover:border-slate-600 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSaving || !academicEditValue.trim()}
+                  className="flex-1 rounded-2xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {passwordModalFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
+                  PDF Password
+                </p>
+                <h2 className="mt-2 text-xl font-bold text-white">
+                  Change password
+                </h2>
+                <p className="mt-2 text-sm text-slate-400">
+                  {passwordModalFile.displayName}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPasswordModalFile(null)}
+                className="text-xl text-slate-500 hover:text-white"
+                aria-label="Close"
+              >
+                  <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+
+            <form onSubmit={submitIndividualPassword} className="mt-6 space-y-4">
+              <input
+                type="password"
+                value={newPdfPassword}
+                onChange={(event) => setNewPdfPassword(event.target.value)}
+                placeholder="New password"
+                autoFocus
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-sm text-white outline-none focus:border-cyan-400"
+              />
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPasswordModalFile(null)}
+                  className="flex-1 rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-300 hover:border-slate-500 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex-1 rounded-xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50"
+                >
+                  {isSaving ? "Saving..." : "Change Password"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showAllPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
+                  Global PDF Password
+                </p>
+                <h2 className="mt-2 text-xl font-bold text-white">
+                  Change Password for All PDFs
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  This updates the password of every currently uploaded PDF. Empty slots are skipped automatically.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAllPasswordModal(false)}
+                className="text-xl text-slate-500 hover:text-white"
+                aria-label="Close"
+              >
+                <span aria-hidden="true">&times;</span>
+              </button>
+            </div>
+
+            <form onSubmit={submitAllPassword} className="mt-6 space-y-4">
+              <input
+                type="password"
+                value={allPdfPassword}
+                onChange={(event) => setAllPdfPassword(event.target.value)}
+                placeholder="New password"
+                autoFocus
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-sm text-white outline-none focus:border-cyan-400"
+              />
+              <input
+                type="password"
+                value={allPdfPasswordConfirm}
+                onChange={(event) =>
+                  setAllPdfPasswordConfirm(event.target.value)
+                }
+                placeholder="Confirm password"
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3.5 text-sm text-white outline-none focus:border-cyan-400"
+              />
+
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAllPasswordModal(false)}
+                  className="flex-1 rounded-xl border border-slate-700 px-4 py-3 text-sm font-semibold text-slate-300 hover:border-slate-500 hover:text-white"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex-1 rounded-xl bg-cyan-400 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-cyan-300 disabled:opacity-50"
+                >
+                  {isSaving ? "Changing..." : "Change All Passwords"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {confirmationModal && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setConfirmationModal(null)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setConfirmationModal(null)
+          }}
+          role="presentation"
+        >
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="admin-confirmation-title"
+            aria-describedby="admin-confirmation-message"
+            className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl shadow-black/40"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="border-b border-slate-800 bg-gradient-to-r from-amber-400/10 via-red-400/5 to-transparent px-6 py-5">
+              <div className="flex items-start gap-4">
+                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border ${confirmationModal.danger ? "border-amber-400/25 bg-amber-400/10 text-amber-300" : "border-cyan-400/25 bg-cyan-400/10 text-cyan-300"}`} aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-5 w-5">
+                    <path d="M12 9v4" strokeLinecap="round" />
+                    <path d="M12 17h.01" strokeLinecap="round" />
+                    <path d="M10.3 3.9 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h2 id="admin-confirmation-title" className="text-lg font-bold text-white">{confirmationModal.title}</h2>
+                  <p id="admin-confirmation-message" className="mt-2 break-words text-sm leading-6 text-slate-400">{confirmationModal.message}</p>
+                </div>
+                <button type="button" onClick={() => setConfirmationModal(null)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xl text-slate-500 transition hover:bg-slate-800 hover:text-white" aria-label="Close confirmation">&times;</button>
+              </div>
+            </div>
+            <div className="flex flex-col-reverse gap-3 px-6 py-5 sm:flex-row sm:justify-end">
+              <button type="button" onClick={() => setConfirmationModal(null)} className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:border-slate-500 hover:bg-slate-800 hover:text-white">Cancel</button>
+              <button type="button" onClick={confirmationModal.onConfirm} className={`rounded-xl px-4 py-2.5 text-sm font-bold text-white transition disabled:cursor-not-allowed disabled:opacity-50 ${confirmationModal.danger ? "bg-red-500 hover:bg-red-400" : "bg-cyan-500 hover:bg-cyan-400"}`}>{confirmationModal.confirmLabel}</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </main>
+  )
+}
+
+export default AdminPdfSecurity
+
+
+
+
+
