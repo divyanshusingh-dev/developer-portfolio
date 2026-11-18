@@ -8,10 +8,6 @@ import type {
   ChangeEvent,
   FormEvent,
 } from "react"
-import AdminSidebar from "./admin/AdminSidebar"
-import ActivityLog from "./admin/ActivityLog"
-import PDFManager from "./admin/PDFManager"
-import PDFSecurity from "./admin/PDFSecurity"
 
 type PdfSetting = {
   slot: string
@@ -2444,11 +2440,16 @@ function AdminPdfSecurity() {
         `}</style>
 
       <div className="mx-auto mb-7 w-full max-w-7xl">
-        <AdminSidebar
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          announcementCount={visibleAnnouncements.length}
-        />
+        <nav aria-label="Admin dashboard navigation" className="flex flex-wrap gap-2 rounded-2xl border border-slate-800 bg-slate-900/70 p-2">
+          <button type="button" onClick={() => setActiveTab("dashboard")} aria-current={activeTab === "dashboard" ? "page" : undefined} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${activeTab === "dashboard" ? "bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-950/20" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+            Dashboard
+          </button>
+          <button type="button" onClick={() => setActiveTab("announcements")} aria-current={activeTab === "announcements" ? "page" : undefined} className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold transition ${activeTab === "announcements" ? "bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-950/20" : "text-slate-400 hover:bg-slate-800 hover:text-white"}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4" aria-hidden="true"><path d="m3 11 18-5-5 17-4-7-9-5Z" strokeLinejoin="round"/><path d="m12 16 5-7" strokeLinecap="round"/></svg>
+            Announcements <span className={`rounded-full px-2 py-0.5 text-[10px] ${activeTab === "announcements" ? "bg-slate-950/15" : "bg-slate-800 text-slate-300"}`}>{visibleAnnouncements.length}</span>
+          </button>
+        </nav>
       </div>
 
       <div hidden={activeTab !== "dashboard"} className="mx-auto w-full max-w-7xl">
@@ -2641,7 +2642,7 @@ function AdminPdfSecurity() {
                 <label className="block"><span className="sr-only">Search administrators</span><input value={adminSearch} onChange={(event) => setAdminSearch(event.target.value)} placeholder="Search by name or email…" className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-cyan-400" /></label>
                 <label className="block"><span className="sr-only">Filter by status</span><select value={adminStatusFilter} onChange={(event) => setAdminStatusFilter(event.target.value)} className="w-full rounded-xl border border-slate-700 bg-slate-950/70 px-3 py-3 text-sm text-white outline-none focus:border-cyan-400"><option value="all">All statuses</option><option value="approved">Approved</option><option value="disabled">Disabled</option><option value="pending">Pending</option><option value="rejected">Rejected</option></select></label>
               </div>
-              {showActivityLog && <div className="mt-4"><ActivityLog entries={activityLog} formatDate={formatDate} /></div>}
+              {showActivityLog && <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/60 p-4"><div className="mb-3 flex items-center justify-between gap-3"><h4 className="text-sm font-bold text-white">Recent activity on this browser</h4><span className="text-[11px] text-amber-300">Local log · not a secure audit trail</span></div>{activityLog.length === 0 ? <p className="text-sm text-slate-500">No actions recorded in this browser yet.</p> : <div className="space-y-3">{activityLog.map((item) => <div key={item.id} className="flex flex-col gap-1 border-b border-slate-800 pb-3 last:border-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-sm font-medium text-slate-200">{item.action}</p><p className="text-xs text-slate-500">{item.detail}</p></div><time className="shrink-0 text-[11px] text-slate-600">{formatDate(item.at)}</time></div>)}</div>}</div>}
               <div className="mt-5 grid gap-4 xl:grid-cols-2">
                 {filteredAdmins.length === 0 ? (
                   <div className="rounded-xl border border-dashed border-slate-700 px-4 py-8 text-center text-sm text-slate-500 xl:col-span-2">{registeredAdmins.length === 0 ? "No additional administrators have been approved yet." : "No administrators match your search and filter."}</div>
@@ -2681,7 +2682,7 @@ function AdminPdfSecurity() {
           </div>
         )}
 
-<PDFManager className="rounded-3xl border border-cyan-400/20 bg-slate-900/80 p-5 shadow-xl sm:p-7">
+        <section className="rounded-3xl border border-cyan-400/20 bg-slate-900/80 p-5 shadow-xl sm:p-7">
           <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
@@ -3063,9 +3064,9 @@ function AdminPdfSecurity() {
               </button>
             </div>
           </form>
-        </PDFManager>
+        </section>
 
-<PDFSecurity className="mt-6 rounded-3xl border border-cyan-400/20 bg-slate-900/80 p-5 shadow-xl sm:p-7">
+        <section className="mt-6 rounded-3xl border border-cyan-400/20 bg-slate-900/80 p-5 shadow-xl sm:p-7">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">
@@ -3112,7 +3113,7 @@ function AdminPdfSecurity() {
               Change Password for All PDFs
             </button>
           </div>
-        </PDFSecurity>
+        </section>
 
         <section className="mt-6 rounded-3xl border border-slate-800 bg-slate-900/70 p-5 sm:p-7">
           <div className="mb-6">
