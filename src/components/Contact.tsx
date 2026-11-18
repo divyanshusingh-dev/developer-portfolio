@@ -1,181 +1,123 @@
 import {
-  useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
   type ChangeEvent,
   type FormEvent,
 } from "react";
 
+import {
+  Copy,
+  Check,
+  Mail,
+  Phone,
+  MapPin,
+  MessageCircle,
+  BriefcaseBusiness,
+  FileText,
+  Download,
+  Eye,
+  RotateCcw,
+  Send,
+  X,
+  ExternalLink,
+  
+} from "lucide-react";
+
 const API_BASE =
-  typeof window !== "undefined" &&
-  (window.location.hostname === "localhost" ||
-    window.location.hostname === "127.0.0.1")
+  window.location.hostname === "localhost" ||
+  window.location.hostname === "127.0.0.1"
     ? "http://localhost:5000"
     : "https://developer-portfolio-8.onrender.com";
 
 const EMAIL = "divyanshusingh2006r@gmail.com";
 const PHONE = "+919473681245";
 const WHATSAPP = "919473681245";
-const DRAFT_KEY = "portfolio_contact_draft_v2";
+const MESSAGE_MAX_LENGTH = 1000;
 
-type ContactForm = {
+type FormData = {
   name: string;
   email: string;
   phone: string;
   purpose: string;
+  customPurpose: string;
   message: string;
-  company: string;
-  designation: string;
-  budget: string;
-  deadline: string;
-  preferredContact: "Email" | "WhatsApp" | "Phone";
-  website: string; // Honeypot: must remain empty.
 };
 
-const EMPTY_FORM: ContactForm = {
+const INITIAL_FORM: FormData = {
   name: "",
   email: "",
   phone: "",
   purpose: "",
+  customPurpose: "",
   message: "",
-  company: "",
-  designation: "",
-  budget: "",
-  deadline: "",
-  preferredContact: "Email",
-  website: "",
 };
 
-const PURPOSES = [
-  { title: "Job Opportunity", description: "Full-time or part-time position" },
-  { title: "Internship", description: "Internship or training opportunity" },
-  { title: "Freelance Project", description: "Paid freelance work" },
-  { title: "Collaboration", description: "Work together on a project" },
-  { title: "Graphic Design Work", description: "Posters, banners and creative work" },
-  { title: "Website / Web Development", description: "Website or web application" },
-  { title: "Project Inquiry", description: "Discuss a project or idea" },
-  { title: "General Inquiry", description: "Any general question" },
-  { title: "Others", description: "Something else" },
+const purposeOptions = [
+  {
+    title: "Job Opportunity",
+    description: "Full-time or part-time position",
+  },
+  {
+    title: "Internship",
+    description: "Internship or training opportunity",
+  },
+  {
+    title: "Freelance Project",
+    description: "Paid freelance work",
+  },
+  {
+    title: "Collaboration",
+    description: "Work together on a project",
+  },
+  {
+    title: "Graphic Design Work",
+    description: "Posters, banners and creative work",
+  },
+  {
+    title: "Website / Web Development",
+    description: "Website or web application",
+  },
+  {
+    title: "Project Inquiry",
+    description: "Discuss a project or idea",
+  },
+  {
+    title: "General Inquiry",
+    description: "Any general question",
+  },
+  {
+    title: "Others",
+    description: "Something else",
+  },
 ];
 
-const TEMPLATES: Record<string, string> = {
-  "Job Opportunity":
-    "Hello Divyanshu,\n\nI am reaching out regarding a job opportunity. Here are a few details about the role:\n\nRole:\nCompany:\nLocation / Work mode:\n\nI would be happy to discuss this further.",
-  Internship:
-    "Hello Divyanshu,\n\nI would like to share an internship opportunity with you.\n\nOrganization:\nRole / Department:\nDuration:\nWork mode:\n\nPlease let me know if you are interested.",
-  "Freelance Project":
-    "Hello Divyanshu,\n\nI have a freelance project that may be a good fit for your skills.\n\nProject overview:\nExpected deliverables:\nTimeline:\nBudget:\n\nPlease let me know if we can discuss it.",
-  Collaboration:
-    "Hello Divyanshu,\n\nI am interested in collaborating with you.\n\nCollaboration idea:\nExpected contribution:\nProposed timeline:\n\nLet me know what you think.",
-  "Graphic Design Work":
-    "Hello Divyanshu,\n\nI am looking for graphic design support.\n\nDesign requirements:\nRequired sizes / formats:\nNumber of creatives:\nDeadline:\n\nPlease share your availability.",
-  "Website / Web Development":
-    "Hello Divyanshu,\n\nI would like to discuss a website / web development requirement.\n\nProject overview:\nRequired features:\nPreferred technology (if any):\nTimeline:\n\nPlease let me know how we can proceed.",
-  "Project Inquiry":
-    "Hello Divyanshu,\n\nI would like to discuss a project.\n\nProject idea:\nMain requirements:\nExpected timeline:\n\nLooking forward to connecting.",
-  "General Inquiry":
-    "Hello Divyanshu,\n\nI am contacting you regarding:\n\n\nThank you.",
-};
-
-const inputClass =
-  "w-full rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-3.5 text-sm text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10";
-const labelClass = "mb-2 block text-sm font-medium text-slate-300";
-const secondaryButton =
-  "rounded-xl border border-slate-700 bg-slate-950/70 px-4 py-2.5 text-sm font-medium text-slate-300 transition hover:border-cyan-500/50 hover:text-cyan-400";
-
-function makeInquiryId() {
-  return `DS-${Date.now().toString(36).toUpperCase()}-${Math.random()
-    .toString(36)
-    .slice(2, 6)
-    .toUpperCase()}`;
-}
-
-function getEmailSuggestion(email: string) {
-  const domain = email.split("@")[1]?.toLowerCase();
-  if (!domain) return "";
-  const corrections: Record<string, string> = {
-    "gamil.com": "gmail.com",
-    "gmial.com": "gmail.com",
-    "yaho.com": "yahoo.com",
-    "outlok.com": "outlook.com",
-    "hotmal.com": "hotmail.com",
-  };
-  return corrections[domain] ? email.replace(domain, corrections[domain]) : "";
-}
-
 function Contact() {
-  const [formData, setFormData] = useState<ContactForm>(EMPTY_FORM);
+  const [formData, setFormData] = useState<FormData>(INITIAL_FORM);
+
   const [status, setStatus] = useState("");
-  const [toast, setToast] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isPurposeOpen, setIsPurposeOpen] = useState(false);
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [isOnline, setIsOnline] = useState(
-    typeof navigator === "undefined" ? true : navigator.onLine
-  );
-  const [draftRestored, setDraftRestored] = useState(false);
-  const [lastSaved, setLastSaved] = useState("");
-  const [inquiryId, setInquiryId] = useState("");
-  const [copied, setCopied] = useState("");
+
+  const [copiedItem, setCopiedItem] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
   const [isResumeModalOpen, setIsResumeModalOpen] = useState(false);
   const [resumePassword, setResumePassword] = useState("");
   const [resumeError, setResumeError] = useState("");
   const [isResumeDownloading, setIsResumeDownloading] = useState(false);
+
+  const [resumePreviewUrl, setResumePreviewUrl] = useState("");
+  const [isResumePreviewOpen, setIsResumePreviewOpen] = useState(false);
+  const [isResumePreviewLoading, setIsResumePreviewLoading] = useState(false);
+
   const purposeRef = useRef<HTMLDivElement>(null);
-  const submittingRef = useRef(false);
-  const lastSubmissionRef = useRef("");
+  const requestRef = useRef(false);
 
-  const emailSuggestion = useMemo(
-    () => getEmailSuggestion(formData.email.trim()),
-    [formData.email]
-  );
-  const messageProgress = Math.min((formData.message.length / 500) * 100, 100);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(DRAFT_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved) as Partial<ContactForm>;
-        setFormData({ ...EMPTY_FORM, ...parsed, website: "" });
-        setDraftRestored(true);
-      }
-    } catch {
-      localStorage.removeItem(DRAFT_KEY);
-    }
-  }, []);
-
-  useEffect(() => {
-    const hasContent = Object.entries(formData).some(
-      ([key, value]) => key !== "website" && String(value).trim()
-    );
-    if (!hasContent) {
-      localStorage.removeItem(DRAFT_KEY);
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(formData));
-      setLastSaved(
-        new Intl.DateTimeFormat(undefined, {
-          hour: "2-digit",
-          minute: "2-digit",
-        }).format(new Date())
-      );
-    }, 500);
-    return () => window.clearTimeout(timer);
-  }, [formData]);
-
-  useEffect(() => {
-    const online = () => setIsOnline(true);
-    const offline = () => setIsOnline(false);
-    window.addEventListener("online", online);
-    window.addEventListener("offline", offline);
-    return () => {
-      window.removeEventListener("online", online);
-      window.removeEventListener("offline", offline);
-    };
-  }, []);
+  const selectedPurpose =
+    formData.purpose === "Others"
+      ? formData.customPurpose.trim()
+      : formData.purpose;
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -186,169 +128,296 @@ function Contact() {
         setIsPurposeOpen(false);
       }
     };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsPurposeOpen(false);
+        setIsResumeModalOpen(false);
+        closeResumePreview();
+      }
+    };
+
     document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+      document.removeEventListener("keydown", handleEscape);
+    };
   }, []);
 
   useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToast(""), 3500);
-    return () => window.clearTimeout(timer);
-  }, [toast]);
+    return () => {
+      if (resumePreviewUrl) {
+        URL.revokeObjectURL(resumePreviewUrl);
+      }
+    };
+  }, [resumePreviewUrl]);
+
+  const closeResumePreview = () => {
+    setIsResumePreviewOpen(false);
+  };
 
   const handleChange = (
-    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+    e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
-    const { name, value } = event.target;
-    setFormData((current) => ({ ...current, [name]: value }));
+    const { name, value } = e.target;
+
+    setFormData((previous) => ({
+      ...previous,
+      [name]: value,
+    }));
+
+    setFieldErrors((previous) => ({
+      ...previous,
+      [name]: "",
+    }));
+
     setStatus("");
   };
 
   const handlePurposeSelect = (purpose: string) => {
-    setFormData((current) => ({
-      ...current,
+    setFormData((previous) => ({
+      ...previous,
       purpose,
-      message: current.message.trim()
-        ? current.message
-        : TEMPLATES[purpose] || "",
+      customPurpose: purpose === "Others" ? previous.customPurpose : "",
     }));
+
+    setFieldErrors((previous) => ({
+      ...previous,
+      purpose: "",
+      customPurpose: "",
+    }));
+
     setIsPurposeOpen(false);
     setStatus("");
   };
 
-  const clearDraft = useCallback(() => {
-    setFormData(EMPTY_FORM);
-    localStorage.removeItem(DRAFT_KEY);
-    setDraftRestored(false);
-    setLastSaved("");
-    setStatus("");
-    setToast("Form draft cleared.");
-  }, []);
-
-  const copyText = async (value: string, label: string) => {
+  // Feature 1 & 2: Copy email and phone
+  const copyToClipboard = async (value: string, type: string) => {
     try {
       await navigator.clipboard.writeText(value);
-      setCopied(label);
-      setToast(`${label} copied to clipboard.`);
-      window.setTimeout(() => setCopied(""), 1800);
+      setCopiedItem(type);
+
+      window.setTimeout(() => {
+        setCopiedItem("");
+      }, 2000);
     } catch {
-      setToast("Clipboard access is not available in this browser.");
+      setStatus("Unable to copy. Please copy manually.");
     }
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (submittingRef.current) return;
+  // Feature 5: Smart validation
+  const validateForm = () => {
+    const errors: Record<string, string> = {};
+
+    if (!formData.name.trim()) {
+      errors.name = "Please enter your name.";
+    } else if (formData.name.trim().length < 2) {
+      errors.name = "Name must contain at least 2 characters.";
+    }
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!formData.email.trim()) {
+      errors.email = "Please enter your email.";
+    } else if (!emailPattern.test(formData.email.trim())) {
+      errors.email = "Please enter a valid email address.";
+    }
+
+    if (formData.phone.trim()) {
+      const phoneDigits = formData.phone.replace(/\D/g, "");
+
+      if (phoneDigits.length < 10 || phoneDigits.length > 15) {
+        errors.phone = "Please enter a valid phone number.";
+      }
+    }
+
     if (!formData.purpose) {
-      setStatus("Please select a purpose.");
-      return;
-    }
-    if (formData.message.trim().length < 10) {
-      setStatus("Please enter a message with at least 10 characters.");
-      return;
-    }
-    if (formData.message.length > 500) {
-      setStatus("Your message must be 500 characters or fewer.");
-      return;
-    }
-    if (!isOnline) {
-      setStatus("You are offline. Please reconnect and try again.");
-      return;
+      errors.purpose = "Please select a purpose.";
     }
 
-    // Client-side duplicate guard for accidental double-clicks.
-    const fingerprint = [
-      formData.name.trim().toLowerCase(),
-      formData.email.trim().toLowerCase(),
-      formData.purpose,
-      formData.message.trim(),
-    ].join("|");
-    if (fingerprint === lastSubmissionRef.current) {
-      setStatus("This inquiry has already been submitted from this page.");
-      return;
+    if (
+      formData.purpose === "Others" &&
+      !formData.customPurpose.trim()
+    ) {
+      errors.customPurpose = "Please specify your purpose.";
     }
 
-    submittingRef.current = true;
+    if (!formData.message.trim()) {
+      errors.message = "Please enter your message.";
+    } else if (formData.message.trim().length < 10) {
+      errors.message = "Message must contain at least 10 characters.";
+    }
+
+    setFieldErrors(errors);
+
+    return Object.keys(errors).length === 0;
+  };
+
+  // Feature 6: Reset with confirmation
+  const resetForm = () => {
+    const hasData = Object.values(formData).some(
+      (value) => value.trim() !== ""
+    );
+
+    if (!hasData) return;
+
+    const confirmed = window.confirm(
+      "Are you sure you want to clear all form fields?"
+    );
+
+    if (!confirmed) return;
+
+    setFormData(INITIAL_FORM);
+    setFieldErrors({});
+    setStatus("");
+  };
+
+  // Feature 7: Duplicate submission protection
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
+    if (requestRef.current || isSending) return;
+
+    if (!validateForm()) return;
+
+    requestRef.current = true;
     setIsSending(true);
     setStatus("");
 
-    const currentInquiryId = makeInquiryId();
     try {
+      const payload = {
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone.trim(),
+        purpose: selectedPurpose,
+        message: formData.message.trim(),
+      };
+
       const response = await fetch(`${API_BASE}/api/contact`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Inquiry-ID": currentInquiryId,
         },
-        body: JSON.stringify({
-          ...formData,
-          name: formData.name.trim(),
-          email: formData.email.trim().toLowerCase(),
-          phone: formData.phone.trim(),
-          message: formData.message.trim(),
-          inquiryId: currentInquiryId,
-          submittedAt: new Date().toISOString(),
-        }),
+        body: JSON.stringify(payload),
       });
 
-      const data = await response.json().catch(() => ({}));
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error(data.message || "Something went wrong. Please try again.");
+        throw new Error(data.message || "Something went wrong.");
       }
 
-      lastSubmissionRef.current = fingerprint;
-      const confirmedId = data.inquiryId || data.contactId || currentInquiryId;
-      setInquiryId(String(confirmedId));
       setStatus("success");
-      setToast("Your message has been sent successfully.");
-      setFormData(EMPTY_FORM);
-      localStorage.removeItem(DRAFT_KEY);
-      setDraftRestored(false);
-      setLastSaved("");
-      setIsPreviewOpen(false);
+      setFormData(INITIAL_FORM);
+      setFieldErrors({});
     } catch (error) {
+      console.error(error);
+
       setStatus(
         error instanceof Error
           ? error.message
-          : "Unable to connect to the server. Please try again."
+          : "Unable to connect to the server."
       );
     } finally {
+      requestRef.current = false;
       setIsSending(false);
-      submittingRef.current = false;
+    }
+  };
+
+  // Resume download / preview helper
+  const getResumeBlob = async (password = "") => {
+    const response = await fetch(`${API_BASE}/api/protected-pdf`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        fileName: "resume.pdf",
+        password,
+      }),
+    });
+
+    const contentType = response.headers.get("content-type") || "";
+
+    if (!response.ok) {
+      let message = "Unable to access resume.";
+
+      try {
+        const data = await response.json();
+        message = data.message || message;
+      } catch {
+        // Keep default error.
+      }
+
+      throw new Error(message);
+    }
+
+    if (!contentType.includes("application/pdf")) {
+      throw new Error("Invalid PDF response received.");
+    }
+
+    return response.blob();
+  };
+
+  // Feature 9: Resume preview
+  const previewResume = async (password = "") => {
+    setIsResumePreviewLoading(true);
+    setResumeError("");
+
+    try {
+      const blob = await getResumeBlob(password);
+
+      if (resumePreviewUrl) {
+        URL.revokeObjectURL(resumePreviewUrl);
+      }
+
+      const url = URL.createObjectURL(blob);
+
+      setResumePreviewUrl(url);
+      setIsResumePreviewOpen(true);
+      setIsResumeModalOpen(false);
+      setResumePassword("");
+    } catch (error) {
+      setResumeError(
+        error instanceof Error
+          ? error.message
+          : "Unable to preview resume."
+      );
+    } finally {
+      setIsResumePreviewLoading(false);
     }
   };
 
   const downloadResume = async (password = "") => {
     setIsResumeDownloading(true);
     setResumeError("");
+
     try {
-      const response = await fetch(`${API_BASE}/api/protected-pdf`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileName: "resume.pdf", password }),
-      });
-      const contentType = response.headers.get("content-type") || "";
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        throw new Error(data.message || "Unable to download resume.");
-      }
-      if (!contentType.includes("application/pdf")) {
-        throw new Error("Invalid PDF response received.");
-      }
-      const blob = await response.blob();
+      const blob = await getResumeBlob(password);
       const url = URL.createObjectURL(blob);
+
       const link = document.createElement("a");
       link.href = url;
       link.download = "resume.pdf";
+
       document.body.appendChild(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(url);
+
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+
       setResumePassword("");
       setIsResumeModalOpen(false);
+      setResumeError("");
     } catch (error) {
+      console.error(error);
+
       setResumeError(
-        error instanceof Error ? error.message : "Unable to download resume."
+        error instanceof Error
+          ? error.message
+          : "Unable to download resume."
       );
     } finally {
       setIsResumeDownloading(false);
@@ -358,361 +427,783 @@ function Contact() {
   const handleResumeClick = async () => {
     setResumeError("");
     setResumePassword("");
+
     try {
       const response = await fetch(
         `${API_BASE}/api/protected-pdf/status/resume.pdf`
       );
-      if (!response.ok) throw new Error("Unable to check resume protection status.");
+
+      if (!response.ok) {
+        throw new Error("Unable to check resume protection status.");
+      }
+
       const data = await response.json();
-      if (data.protected) setIsResumeModalOpen(true);
-      else await downloadResume("");
+
+      if (data.protected) {
+        setIsResumeModalOpen(true);
+        return;
+      }
+
+      await downloadResume("");
     } catch (error) {
       setResumeError(
-        error instanceof Error ? error.message : "Unable to access resume."
+        error instanceof Error
+          ? error.message
+          : "Unable to access resume."
       );
     }
   };
 
-  const handleResumeSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleResumeSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+
     if (!resumePassword.trim()) {
       setResumeError("Please enter the PDF password.");
       return;
     }
+
     await downloadResume(resumePassword);
   };
+
+  // Feature 11: Dynamic email subject
+  const emailSubject = encodeURIComponent(
+    selectedPurpose
+      ? `Portfolio Inquiry - ${selectedPurpose}`
+      : "Portfolio Inquiry"
+  );
+
+  const emailBody = encodeURIComponent(
+    `Hello Divyanshu,\n\nI would like to contact you regarding ${
+      selectedPurpose || "an inquiry"
+    }.\n\n`
+  );
+
+  const composeEmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${EMAIL}&su=${emailSubject}&body=${emailBody}`;
+
+  const inputClass =
+    "w-full rounded-lg border border-slate-700 bg-slate-950/70 px-3.5 py-3 text-xs text-white outline-none transition placeholder:text-slate-600 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/10 sm:text-sm";
+
+  const labelClass =
+    "mb-1.5 block text-xs font-medium text-slate-300";
+
+  const errorClass = "mt-1.5 text-[11px] text-red-400";
 
   return (
     <section
       id="contact"
-      className="relative w-full overflow-hidden border-t border-slate-800 bg-transparent px-4 py-16 sm:px-6 sm:py-20 lg:px-8 lg:py-24"
+      className="w-full overflow-hidden border-t border-slate-800 bg-transparent px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20"
     >
-      <div className="pointer-events-none absolute left-[-8rem] top-24 h-72 w-72 rounded-full bg-cyan-500/5 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-10 right-[-8rem] h-72 w-72 rounded-full bg-blue-500/5 blur-3xl" />
+      <div className="mx-auto max-w-6xl">
 
-      <div className="relative mx-auto max-w-7xl">
-        <div className="mb-12 text-center">
-          <p className="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-cyan-400">
+        {/* Heading */}
+        <div className="mb-9 text-center">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-400">
             Get In Touch
           </p>
-          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl lg:text-5xl">
+
+          <h2 className="text-2xl font-bold tracking-tight text-white sm:text-3xl lg:text-4xl">
             Let's Work Together
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-slate-400 sm:text-base">
+
+          <p className="mx-auto mt-3 max-w-xl text-xs leading-6 text-slate-400 sm:text-sm">
             Have a project, internship opportunity, or collaboration in mind?
             Feel free to reach out. I would be happy to connect with you.
           </p>
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-3 text-xs">
-            <span
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 ${
-                isOnline
-                  ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-400"
-                  : "border-red-500/20 bg-red-500/5 text-red-400"
-              }`}
-            >
-              <span className={`h-1.5 w-1.5 rounded-full ${isOnline ? "bg-emerald-400" : "bg-red-400"}`} />
-              {isOnline ? "You are online" : "You are offline"}
-            </span>
-            {lastSaved && (
-              <span className="text-slate-500">Draft saved at {lastSaved}</span>
-            )}
-            {draftRestored && (
-              <span className="text-cyan-400">Previous draft restored</span>
-            )}
-          </div>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-[0.85fr_1.15fr]">
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-xl backdrop-blur-sm sm:p-8">
-            <div className="mb-8">
-              <h3 className="text-2xl font-bold text-white">Contact Information</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">
-                You can contact me directly through email, phone, or social platforms.
+        <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
+
+          {/* LEFT SIDE */}
+          <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-xl backdrop-blur-sm sm:p-6">
+
+            <div className="mb-6">
+              <h3 className="text-xl font-bold text-white">
+                Contact Information
+              </h3>
+
+              <p className="mt-1.5 text-xs leading-5 text-slate-400 sm:text-sm">
+                You can contact me directly through email, phone, or social
+                platforms.
               </p>
             </div>
 
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">✉</div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs uppercase tracking-wider text-slate-500">Email</p>
-                  <p className="mt-1 break-all text-sm text-slate-200">{EMAIL}</p>
+            <div className="space-y-3.5">
+
+              {/* Email */}
+              <div className="group flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3 transition hover:border-cyan-500/40">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                  <Mail size={19} />
                 </div>
-                <button type="button" onClick={() => copyText(EMAIL, "Email")} className={secondaryButton}>
-                  {copied === "Email" ? "Copied" : "Copy"}
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                    Email
+                  </p>
+
+                  <a
+                    href={`mailto:${EMAIL}`}
+                    className="mt-0.5 block break-all text-xs text-slate-200 transition hover:text-cyan-400 sm:text-sm"
+                  >
+                    {EMAIL}
+                  </a>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(EMAIL, "email")}
+                  aria-label="Copy email address"
+                  className="rounded-lg p-2 text-slate-500 transition hover:bg-cyan-500/10 hover:text-cyan-400"
+                >
+                  {copiedItem === "email" ? (
+                    <Check size={16} />
+                  ) : (
+                    <Copy size={16} />
+                  )}
                 </button>
               </div>
 
-              <div className="flex items-center gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">☎</div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs uppercase tracking-wider text-slate-500">Phone</p>
-                  <p className="mt-1 text-sm text-slate-200">+91 94736 81245</p>
+              {/* Phone */}
+              <div className="group flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3 transition hover:border-cyan-500/40">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                  <Phone size={19} />
                 </div>
-                <button type="button" onClick={() => copyText(PHONE, "Phone")} className={secondaryButton}>
-                  {copied === "Phone" ? "Copied" : "Copy"}
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                    Phone
+                  </p>
+
+                  <a
+                    href={`tel:${PHONE}`}
+                    className="mt-0.5 block text-xs text-slate-200 transition hover:text-cyan-400 sm:text-sm"
+                  >
+                    +91 94736 81245
+                  </a>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(PHONE, "phone")}
+                  aria-label="Copy phone number"
+                  className="rounded-lg p-2 text-slate-500 transition hover:bg-cyan-500/10 hover:text-cyan-400"
+                >
+                  {copiedItem === "phone" ? (
+                    <Check size={16} />
+                  ) : (
+                    <Copy size={16} />
+                  )}
                 </button>
               </div>
 
-              <div className="flex items-center gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">⌖</div>
+              {/* Location */}
+              <div className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                  <MapPin size={19} />
+                </div>
+
                 <div>
-                  <p className="text-xs uppercase tracking-wider text-slate-500">Location</p>
-                  <p className="mt-1 text-sm text-slate-200">Jaunpur, Uttar Pradesh, India</p>
+                  <p className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
+                    Location
+                  </p>
+
+                  <p className="mt-0.5 text-xs text-slate-200 sm:text-sm">
+                    Jaunpur, Uttar Pradesh, India
+                  </p>
                 </div>
               </div>
+
             </div>
 
-            <div className="mt-8 border-t border-slate-800 pt-7">
-              <p className="mb-4 text-sm font-semibold text-white">Connect With Me</p>
-              <div className="flex flex-wrap gap-3">
-                <a href="https://linkedin.com/in/divyanshusingh077" target="_blank" rel="noopener noreferrer" className={secondaryButton}>LinkedIn</a>
-                <a href="https://github.com/divyanshusingh-dev" target="_blank" rel="noopener noreferrer" className={secondaryButton}>GitHub</a>
-                <a href={`https://wa.me/${WHATSAPP}`} target="_blank" rel="noopener noreferrer" className={secondaryButton}>WhatsApp</a>
-                <button type="button" onClick={handleResumeClick} className={secondaryButton}>Download Resume</button>
+            {/* Feature 12: Availability status */}
+            <div className="mt-5 flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-3">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-400" />
+              </span>
+
+              <div>
+                <p className="text-xs font-semibold text-emerald-400">
+                  Open to Opportunities
+                </p>
+                <p className="mt-0.5 text-[10px] text-slate-500">
+                  Available for suitable projects and collaborations
+                </p>
               </div>
-              {resumeError && !isResumeModalOpen && (
-                <p className="mt-3 text-xs text-red-400">{resumeError}</p>
-              )}
             </div>
 
-            <div className="mt-6 rounded-2xl border border-cyan-500/15 bg-cyan-500/5 p-4">
-              <p className="text-sm font-semibold text-cyan-300">Preferred response time</p>
-              <p className="mt-1 text-xs leading-5 text-slate-400">
-                I will review your message and respond as soon as possible.
+            {/* Social links */}
+            <div className="mt-6 border-t border-slate-800 pt-5">
+              <p className="mb-3 text-xs font-semibold text-white sm:text-sm">
+                Connect With Me
               </p>
+
+              <div className="flex flex-wrap gap-2.5">
+
+                <a
+                  href="https://linkedin.com/in/divyanshusingh077"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg border border-slate-700 bg-slate-950/70 px-3.5 py-2 text-xs font-medium text-slate-300 transition hover:border-cyan-500/50 hover:text-cyan-400"
+                >
+                  LinkedIn
+                </a>
+
+                <a
+                  href="https://github.com/divyanshusingh-dev"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg border border-slate-700 bg-slate-950/70 px-3.5 py-2 text-xs font-medium text-slate-300 transition hover:border-cyan-500/50 hover:text-cyan-400"
+                >
+                  GitHub
+                </a>
+
+                {/* Feature 3: WhatsApp */}
+                <a
+                  href={`https://wa.me/${WHATSAPP}?text=${encodeURIComponent(
+                    "Hello Divyanshu, I visited your portfolio and would like to connect with you."
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-3.5 py-2 text-xs font-medium text-emerald-400 transition hover:bg-emerald-500/10"
+                >
+                  <MessageCircle size={14} />
+                  WhatsApp
+                </a>
+
+                <button
+                  type="button"
+                  onClick={handleResumeClick}
+                  className="rounded-lg border border-slate-700 bg-slate-950/70 px-3.5 py-2 text-xs font-medium text-slate-300 transition hover:border-cyan-500/50 hover:text-cyan-400"
+                >
+                  Download Resume
+                </button>
+
+                {/* Feature 9: Resume Preview */}
+                <button
+                  type="button"
+                  onClick={() => previewResume("")}
+                  disabled={isResumePreviewLoading}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-950/70 px-3.5 py-2 text-xs font-medium text-slate-300 transition hover:border-cyan-500/50 hover:text-cyan-400 disabled:opacity-50"
+                >
+                  <Eye size={14} />
+                  {isResumePreviewLoading ? "Loading..." : "Preview Resume"}
+                </button>
+              </div>
+
+              {resumeError && !isResumeModalOpen && (
+                <p className="mt-2 text-[11px] text-red-400">
+                  {resumeError}
+                </p>
+              )}
+
+              {copiedItem && (
+                <p className="mt-2 text-[11px] text-emerald-400">
+                  {copiedItem === "email"
+                    ? "Email address copied!"
+                    : "Phone number copied!"}
+                </p>
+              )}
             </div>
           </div>
 
-          <div className="relative overflow-visible rounded-3xl border border-slate-800 bg-slate-900/60 p-6 shadow-xl backdrop-blur-sm sm:p-8">
-            <div className="pointer-events-none absolute -right-20 -top-20 h-40 w-40 rounded-full bg-cyan-500/10 blur-3xl" />
+          {/* RIGHT SIDE - CONTACT FORM */}
+          <div className="relative overflow-visible rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-xl backdrop-blur-sm sm:p-6">
+
+            <div className="pointer-events-none absolute -right-16 -top-16 h-32 w-32 rounded-full bg-cyan-500/10 blur-3xl" />
+
             <div className="relative">
-              <div className="flex flex-wrap items-start justify-between gap-4">
+
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <h3 className="text-2xl font-bold text-white">Send Me a Message</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-400">
-                    Share a few details and I will get back to you.
+                  <h3 className="text-xl font-bold text-white">
+                    Send Me a Message
+                  </h3>
+
+                  <p className="mt-1.5 text-xs leading-5 text-slate-400 sm:text-sm">
+                    Fill out the form below and I will get back to you as soon
+                    as possible.
                   </p>
                 </div>
-                <button type="button" onClick={clearDraft} className="text-xs text-slate-500 transition hover:text-red-400">
-                  Clear form
+
+                {/* Feature 6: Reset */}
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  disabled={isSending}
+                  title="Reset form"
+                  className="shrink-0 rounded-lg border border-slate-700 p-2 text-slate-400 transition hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-400 disabled:opacity-40"
+                >
+                  <RotateCcw size={15} />
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-                {/* Hidden honeypot field. Real visitors should never fill this. */}
-                <div className="absolute -left-[10000px] top-auto h-px w-px overflow-hidden" aria-hidden="true">
-                  <label htmlFor="contact-website">Website</label>
-                  <input id="contact-website" name="website" value={formData.website} onChange={handleChange} tabIndex={-1} autoComplete="off" />
+              <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+
+                {/* Name + Email */}
+                <div className="grid gap-4 sm:grid-cols-2">
+
+                  <div>
+                    <label htmlFor="name" className={labelClass}>
+                      Your Name
+                    </label>
+
+                    <input
+                      id="name"
+                      name="name"
+                      type="text"
+                      value={formData.name}
+                      onChange={handleChange}
+                      placeholder="Enter your name"
+                      autoComplete="name"
+                      className={inputClass}
+                      required
+                    />
+
+                    {fieldErrors.name && (
+                      <p className={errorClass}>{fieldErrors.name}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label htmlFor="email" className={labelClass}>
+                      Your Email
+                    </label>
+
+                    <input
+                      id="email"
+                      name="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      className={inputClass}
+                      required
+                    />
+
+                    {fieldErrors.email && (
+                      <p className={errorClass}>{fieldErrors.email}</p>
+                    )}
+                  </div>
                 </div>
 
-                <div className="grid gap-5 sm:grid-cols-2">
+                {/* Phone + Purpose */}
+                <div className="grid gap-4 sm:grid-cols-2">
+
                   <div>
-                    <label htmlFor="contact-name" className={labelClass}>Your Name *</label>
-                    <input id="contact-name" name="name" value={formData.name} onChange={handleChange} placeholder="Enter your name" required maxLength={80} autoComplete="name" className={inputClass} />
+                    <label htmlFor="phone" className={labelClass}>
+                      Phone Number
+                      <span className="ml-1 text-[10px] text-slate-500">
+                        (Optional)
+                      </span>
+                    </label>
+
+                    <input
+                      id="phone"
+                      name="phone"
+                      type="tel"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      placeholder="+91 XXXXX XXXXX"
+                      autoComplete="tel"
+                      className={inputClass}
+                    />
+
+                    {fieldErrors.phone && (
+                      <p className={errorClass}>{fieldErrors.phone}</p>
+                    )}
                   </div>
-                  <div>
-                    <label htmlFor="contact-email" className={labelClass}>Your Email *</label>
-                    <input id="contact-email" name="email" type="email" value={formData.email} onChange={handleChange} placeholder="you@example.com" required maxLength={120} autoComplete="email" className={inputClass} />
-                    {emailSuggestion && (
-                      <p className="mt-2 text-xs text-amber-400">
-                        Did you mean{" "}
-                        <button type="button" className="font-semibold underline" onClick={() => setFormData((current) => ({ ...current, email: emailSuggestion }))}>
-                          {emailSuggestion}
-                        </button>
-                        ?
+
+                  {/* Purpose dropdown */}
+                  <div ref={purposeRef} className="relative">
+                    <label className={labelClass}>
+                      Purpose
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsPurposeOpen((prev) => !prev)}
+                      aria-expanded={isPurposeOpen}
+                      className={`flex w-full items-center justify-between rounded-lg border px-3.5 py-3 text-left transition ${
+                        isPurposeOpen
+                          ? "border-cyan-500 bg-slate-950"
+                          : "border-slate-700 bg-slate-950/70 hover:border-slate-600"
+                      }`}
+                    >
+                      <div className="flex min-w-0 items-center gap-2.5">
+                        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-cyan-500/10 text-cyan-400">
+                          <BriefcaseBusiness size={14} />
+                        </div>
+
+                        <span className="truncate text-xs text-slate-300">
+                          {formData.purpose || "Select a purpose"}
+                        </span>
+                      </div>
+
+                      <span className="ml-2 text-slate-500">
+                        {isPurposeOpen ? "⌃" : "⌄"}
+                      </span>
+                    </button>
+
+                    {isPurposeOpen && (
+                      <div className="absolute left-0 right-0 top-full z-[100] mt-2 overflow-hidden rounded-xl border border-slate-700 bg-[#07101f] p-1.5 shadow-2xl">
+                        <div className="border-b border-slate-800 px-2.5 pb-2 pt-1.5">
+                          <p className="text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+                            Choose Purpose
+                          </p>
+                        </div>
+
+                        <div className="mt-1 max-h-64 overflow-y-auto">
+                          {purposeOptions.map((option) => {
+                            const isSelected =
+                              formData.purpose === option.title;
+
+                            return (
+                              <button
+                                key={option.title}
+                                type="button"
+                                onClick={() =>
+                                  handlePurposeSelect(option.title)
+                                }
+                                className={`w-full rounded-lg px-2.5 py-2 text-left transition ${
+                                  isSelected
+                                    ? "bg-cyan-500/10"
+                                    : "hover:bg-white/[0.04]"
+                                }`}
+                              >
+                                <p
+                                  className={`text-xs font-medium ${
+                                    isSelected
+                                      ? "text-cyan-400"
+                                      : "text-slate-200"
+                                  }`}
+                                >
+                                  {option.title}
+                                </p>
+
+                                <p className="mt-0.5 text-[10px] text-slate-500">
+                                  {option.description}
+                                </p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {fieldErrors.purpose && (
+                      <p className={errorClass}>
+                        {fieldErrors.purpose}
                       </p>
                     )}
                   </div>
                 </div>
 
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="contact-phone" className={labelClass}>Phone Number <span className="text-xs text-slate-500">(Optional)</span></label>
-                    <input id="contact-phone" name="phone" type="tel" value={formData.phone} onChange={handleChange} placeholder="+91 XXXXX XXXXX" maxLength={25} autoComplete="tel" className={inputClass} />
-                  </div>
-                  <div ref={purposeRef} className="relative">
-                    <label className={labelClass}>Purpose *</label>
-                    <button type="button" aria-haspopup="listbox" aria-expanded={isPurposeOpen} onClick={() => setIsPurposeOpen((value) => !value)} className={`${inputClass} flex items-center justify-between text-left ${isPurposeOpen ? "border-cyan-500" : ""}`}>
-                      <span className={formData.purpose ? "text-white" : "text-slate-600"}>{formData.purpose || "Select a purpose"}</span>
-                      <span className="text-slate-400">⌄</span>
-                    </button>
-                    {isPurposeOpen && (
-                      <div role="listbox" className="absolute left-0 right-0 top-full z-50 mt-2 max-h-72 overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-2 shadow-2xl">
-                        {PURPOSES.map((option) => (
-                          <button key={option.title} type="button" role="option" aria-selected={formData.purpose === option.title} onClick={() => handlePurposeSelect(option.title)} className="w-full rounded-xl px-3 py-3 text-left transition hover:bg-cyan-500/10">
-                            <span className="block text-sm font-medium text-slate-200">{option.title}</span>
-                            <span className="mt-0.5 block text-xs text-slate-500">{option.description}</span>
-                          </button>
-                        ))}
-                      </div>
+                {/* Feature 10: Custom purpose */}
+                {formData.purpose === "Others" && (
+                  <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                    <label htmlFor="customPurpose" className={labelClass}>
+                      Specify Your Purpose
+                    </label>
+
+                    <input
+                      id="customPurpose"
+                      name="customPurpose"
+                      type="text"
+                      value={formData.customPurpose}
+                      onChange={handleChange}
+                      placeholder="Enter your purpose"
+                      className={inputClass}
+                      required
+                    />
+
+                    {fieldErrors.customPurpose && (
+                      <p className={errorClass}>
+                        {fieldErrors.customPurpose}
+                      </p>
                     )}
                   </div>
-                </div>
-
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="contact-company" className={labelClass}>Company / Organization <span className="text-xs text-slate-500">(Optional)</span></label>
-                    <input id="contact-company" name="company" value={formData.company} onChange={handleChange} placeholder="Company name" maxLength={100} className={inputClass} />
-                  </div>
-                  <div>
-                    <label htmlFor="contact-designation" className={labelClass}>Your Designation <span className="text-xs text-slate-500">(Optional)</span></label>
-                    <input id="contact-designation" name="designation" value={formData.designation} onChange={handleChange} placeholder="e.g. HR Manager" maxLength={80} className={inputClass} />
-                  </div>
-                </div>
-
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="contact-budget" className={labelClass}>Budget / Salary Range <span className="text-xs text-slate-500">(Optional)</span></label>
-                    <input id="contact-budget" name="budget" value={formData.budget} onChange={handleChange} placeholder="e.g. ₹10,000 - ₹20,000" maxLength={80} className={inputClass} />
-                  </div>
-                  <div>
-                    <label htmlFor="contact-deadline" className={labelClass}>Expected Deadline <span className="text-xs text-slate-500">(Optional)</span></label>
-                    <input id="contact-deadline" name="deadline" type="date" value={formData.deadline} onChange={handleChange} className={inputClass} />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="contact-channel" className={labelClass}>Preferred Contact Method</label>
-                  <select id="contact-channel" name="preferredContact" value={formData.preferredContact} onChange={handleChange} className={inputClass}>
-                    <option value="Email">Email</option>
-                    <option value="WhatsApp">WhatsApp</option>
-                    <option value="Phone">Phone</option>
-                  </select>
-                </div>
-
-                {formData.purpose && TEMPLATES[formData.purpose] && !formData.message.trim() && (
-                  <button type="button" onClick={() => setFormData((current) => ({ ...current, message: TEMPLATES[current.purpose] || "" }))} className="text-xs font-medium text-cyan-400 transition hover:text-cyan-300">
-                    + Insert a suggested message template
-                  </button>
                 )}
 
+                {/* Message + Feature 4 */}
                 <div>
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <label htmlFor="contact-message" className="text-sm font-medium text-slate-300">Message *</label>
-                    <span className={`text-xs tabular-nums ${formData.message.length > 500 ? "text-red-400" : "text-slate-500"}`}>{formData.message.length}/500</span>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label htmlFor="message" className={labelClass}>
+                      Message
+                    </label>
+
+                    <span
+                      className={`text-[10px] ${
+                        formData.message.length >= MESSAGE_MAX_LENGTH
+                          ? "text-red-400"
+                          : "text-slate-500"
+                      }`}
+                    >
+                      {formData.message.length}/{MESSAGE_MAX_LENGTH}
+                    </span>
                   </div>
-                  <textarea id="contact-message" name="message" rows={6} value={formData.message} onChange={handleChange} placeholder="Write your message here..." required maxLength={500} className={`${inputClass} resize-y`} />
-                  <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-800">
-                    <div className={`h-full rounded-full transition-all ${formData.message.length > 500 ? "bg-red-500" : "bg-cyan-500"}`} style={{ width: `${messageProgress}%` }} />
+
+                  <textarea
+                    id="message"
+                    name="message"
+                    rows={5}
+                    maxLength={MESSAGE_MAX_LENGTH}
+                    value={formData.message}
+                    onChange={handleChange}
+                    placeholder="Write your message here..."
+                    className={`${inputClass} resize-none`}
+                    required
+                  />
+
+                  {fieldErrors.message && (
+                    <p className={errorClass}>
+                      {fieldErrors.message}
+                    </p>
+                  )}
+
+                  <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className={`h-full rounded-full transition-all duration-300 ${
+                        formData.message.length >= MESSAGE_MAX_LENGTH
+                          ? "bg-red-400"
+                          : "bg-cyan-500"
+                      }`}
+                      style={{
+                        width: `${
+                          (formData.message.length / MESSAGE_MAX_LENGTH) *
+                          100
+                        }%`,
+                      }}
+                    />
                   </div>
-                  <p className="mt-2 text-xs text-slate-500">Please include enough detail so I can understand your request.</p>
                 </div>
 
+                {/* Feature 8: Success animation */}
                 {status === "success" && (
-                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400">
-                    <p className="font-semibold">✓ Message sent successfully!</p>
-                    {inquiryId && <p className="mt-1 text-xs">Inquiry reference: {inquiryId}</p>}
-                    <p className="mt-1 text-xs text-emerald-400/80">Please keep this reference for your records.</p>
+                  <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-4">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-400">
+                        <Check size={19} />
+                      </div>
+
+                      <div>
+                        <p className="text-sm font-semibold text-emerald-400">
+                          Message sent successfully!
+                        </p>
+                        <p className="mt-0.5 text-[11px] text-slate-400">
+                          Thank you for reaching out. I'll get back to you.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
+
                 {status && status !== "success" && (
-                  <div role="alert" className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">{status}</div>
+                  <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-400">
+                    {status}
+                  </div>
                 )}
 
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <button type="button" disabled={isSending} onClick={() => setIsPreviewOpen(true)} className="flex-1 rounded-xl border border-slate-700 bg-slate-950/70 px-5 py-3.5 text-sm font-semibold text-slate-300 transition hover:border-cyan-500/50 hover:text-cyan-400 disabled:opacity-50">
-                    Preview Message
-                  </button>
-                  <button type="submit" disabled={isSending || !isOnline} className="group flex flex-1 items-center justify-center gap-2 rounded-xl bg-cyan-500 px-6 py-3.5 text-sm font-bold text-slate-950 transition-all duration-300 hover:bg-cyan-400 hover:shadow-lg hover:shadow-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60">
-                    {isSending ? "Sending..." : "Send Message"}
-                    {!isSending && <span className="transition-transform duration-300 group-hover:translate-x-1">→</span>}
-                  </button>
-                </div>
-                <p className="text-center text-[11px] leading-5 text-slate-500">
-                  Your details are used only to respond to this inquiry. Drafts are saved locally in this browser and cleared after successful submission.
-                </p>
+                {/* Submit */}
+                <button
+                  type="submit"
+                  disabled={isSending}
+                  className="group flex w-full items-center justify-center gap-2 rounded-lg bg-cyan-500 px-5 py-3 text-xs font-bold text-slate-950 transition-all duration-300 hover:bg-cyan-400 hover:shadow-lg hover:shadow-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
+                >
+                  {isSending ? (
+                    <>
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950/30 border-t-slate-950" />
+                      Sending Message...
+                    </>
+                  ) : (
+                    <>
+                      <Send size={15} />
+                      Send Message
+                    </>
+                  )}
+                </button>
+
               </form>
             </div>
           </div>
         </div>
 
-        <div className="mt-10 overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/60 shadow-xl backdrop-blur-sm">
-          <div className="flex flex-col gap-6 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-cyan-500/20 bg-cyan-500/10 text-cyan-400">✉</div>
+        {/* Bottom Email CTA */}
+        <div className="mt-20 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60 shadow-xl backdrop-blur-sm">
+          <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-cyan-500/20 bg-cyan-500/10 text-cyan-400">
+                <Mail size={19} />
+              </div>
+
               <div>
-                <p className="text-sm font-semibold text-white">Prefer direct email?</p>
-                <p className="mt-1 break-all text-sm text-slate-400">{EMAIL}</p>
+                <p className="text-xs font-semibold text-white sm:text-sm">
+                  Prefer direct email?
+                </p>
+
+                <p className="mt-0.5 break-all text-xs text-slate-400 sm:text-sm">
+                  {EMAIL}
+                </p>
               </div>
             </div>
-            <a href={`mailto:${EMAIL}?subject=Portfolio%20Inquiry`} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-5 py-3 text-sm font-semibold text-cyan-400 transition hover:border-cyan-400/60 hover:bg-cyan-500/15 hover:text-cyan-300">
-              Compose Email <span>→</span>
+
+            <a
+              href={composeEmailUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border border-cyan-500/30 bg-cyan-500/10 px-4 py-2.5 text-xs font-semibold text-cyan-400 transition-all duration-300 hover:border-cyan-400/60 hover:bg-cyan-500/15 hover:text-cyan-300 hover:shadow-lg hover:shadow-cyan-500/10 sm:text-sm"
+              aria-label="Compose an email to Divyanshu Singh"
+            >
+              <span>Compose Email</span>
+              <ExternalLink size={14} />
             </a>
+
           </div>
         </div>
       </div>
 
-      {toast && (
-        <div role="status" className="fixed bottom-5 right-5 z-[250] max-w-[calc(100vw-2.5rem)] rounded-xl border border-cyan-500/20 bg-slate-900 px-4 py-3 text-sm text-cyan-300 shadow-2xl">
-          {toast}
-        </div>
-      )}
-
-      {isPreviewOpen && (
-        <div className="fixed inset-0 z-[210] flex items-center justify-center bg-slate-950/80 px-4 py-6 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsPreviewOpen(false); }}>
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-2xl sm:p-8">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-400">Review Details</p>
-                <h3 className="mt-2 text-2xl font-bold text-white">Message Preview</h3>
-              </div>
-              <button type="button" onClick={() => setIsPreviewOpen(false)} className="rounded-lg px-3 py-2 text-slate-400 hover:bg-slate-800 hover:text-white" aria-label="Close preview">✕</button>
-            </div>
-            <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-              {[
-                ["Name", formData.name],
-                ["Email", formData.email],
-                ["Phone", formData.phone || "Not provided"],
-                ["Purpose", formData.purpose],
-                ["Company", formData.company || "Not provided"],
-                ["Designation", formData.designation || "Not provided"],
-                ["Budget", formData.budget || "Not provided"],
-                ["Deadline", formData.deadline || "Not specified"],
-                ["Preferred contact", formData.preferredContact],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
-                  <dt className="text-xs uppercase tracking-wider text-slate-500">{label}</dt>
-                  <dd className="mt-1 break-words text-sm text-slate-200">{value || "Not provided"}</dd>
-                </div>
-              ))}
-            </dl>
-            <div className="mt-4 rounded-xl border border-slate-800 bg-slate-950/60 p-4">
-              <p className="text-xs uppercase tracking-wider text-slate-500">Message</p>
-              <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-200">{formData.message || "No message entered."}</p>
-            </div>
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button type="button" onClick={() => setIsPreviewOpen(false)} className={secondaryButton}>Continue Editing</button>
-              <button type="button" onClick={() => setIsPreviewOpen(false)} className="rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400">Looks Good</button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* Resume Password Modal */}
       {isResumeModalOpen && (
-        <div className="fixed inset-0 z-[220] flex items-center justify-center bg-slate-950/80 px-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl border border-slate-700 bg-slate-900 p-6 shadow-2xl sm:p-8">
-            <div className="mb-6">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-400">🔒</div>
-              <h3 className="text-2xl font-bold text-white">Protected Resume</h3>
-              <p className="mt-2 text-sm leading-6 text-slate-400">Enter the password to download the resume.</p>
-            </div>
-            <form onSubmit={handleResumeSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="resume-password" className={labelClass}>PDF Password</label>
-                <input id="resume-password" type="password" value={resumePassword} onChange={(event) => { setResumePassword(event.target.value); setResumeError(""); }} placeholder="Enter password" autoFocus className={inputClass} />
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/80 px-4 backdrop-blur-sm"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !isResumeDownloading) {
+              setIsResumeModalOpen(false);
+              setResumePassword("");
+              setResumeError("");
+            }
+          }}
+        >
+          <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl sm:p-6">
+
+            <div className="mb-5">
+              <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-cyan-500/10 text-cyan-400">
+                <FileText size={20} />
               </div>
-              {resumeError && <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">{resumeError}</div>}
-              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                <button type="button" onClick={() => { if (!isResumeDownloading) { setIsResumeModalOpen(false); setResumePassword(""); setResumeError(""); } }} disabled={isResumeDownloading} className={secondaryButton}>Cancel</button>
-                <button type="submit" disabled={isResumeDownloading} className="rounded-xl bg-cyan-500 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60">
-                  {isResumeDownloading ? "Downloading..." : "Download Resume"}
+
+              <h3 className="text-xl font-bold text-white">
+                Protected Resume
+              </h3>
+
+              <p className="mt-1.5 text-xs leading-5 text-slate-400 sm:text-sm">
+                Enter the password to access your resume.
+              </p>
+            </div>
+
+            <form onSubmit={handleResumeSubmit} className="space-y-3.5">
+              <div>
+                <label
+                  htmlFor="resume-password"
+                  className={labelClass}
+                >
+                  PDF Password
+                </label>
+
+                <input
+                  id="resume-password"
+                  type="password"
+                  value={resumePassword}
+                  onChange={(e) => {
+                    setResumePassword(e.target.value);
+                    setResumeError("");
+                  }}
+                  placeholder="Enter password"
+                  autoFocus
+                  className={inputClass}
+                />
+              </div>
+
+              {resumeError && (
+                <div className="rounded-lg border border-red-500/20 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-400">
+                  {resumeError}
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2.5 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isResumeDownloading) {
+                      setIsResumeModalOpen(false);
+                      setResumePassword("");
+                      setResumeError("");
+                    }
+                  }}
+                  disabled={isResumeDownloading}
+                  className="rounded-lg border border-slate-700 bg-slate-950/70 px-4 py-2.5 text-xs font-medium text-slate-300 transition hover:border-slate-500 hover:text-white disabled:opacity-50 sm:text-sm"
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isResumeDownloading}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-cyan-500 px-4 py-2.5 text-xs font-bold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-60 sm:text-sm"
+                >
+                  {isResumeDownloading ? (
+                    "Downloading..."
+                  ) : (
+                    <>
+                      <Download size={14} />
+                      Download Resume
+                    </>
+                  )}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* Feature 9: Resume Preview Modal */}
+      {isResumePreviewOpen && resumePreviewUrl && (
+        <div className="fixed inset-0 z-[250] flex items-center justify-center bg-slate-950/90 p-3 backdrop-blur-md sm:p-6">
+          <div className="flex h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl">
+
+            <div className="flex items-center justify-between border-b border-slate-800 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <FileText size={18} className="text-cyan-400" />
+                <div>
+                  <p className="text-sm font-semibold text-white">
+                    Resume Preview
+                  </p>
+                  <p className="text-[10px] text-slate-500">
+                    Divyanshu Singh
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href={resumePreviewUrl}
+                  download="resume.pdf"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-500 px-3 py-2 text-xs font-bold text-slate-950 transition hover:bg-cyan-400"
+                >
+                  <Download size={14} />
+                  Download
+                </a>
+
+                <button
+                  type="button"
+                  onClick={closeResumePreview}
+                  className="rounded-lg border border-slate-700 p-2 text-slate-300 transition hover:border-red-500/50 hover:text-red-400"
+                  aria-label="Close resume preview"
+                >
+                  <X size={17} />
+                </button>
+              </div>
+            </div>
+
+            <iframe
+              src={resumePreviewUrl}
+              title="Resume PDF Preview"
+              className="h-full w-full flex-1 bg-white"
+            />
+          </div>
+        </div>
+      )}
+
     </section>
   );
 }
